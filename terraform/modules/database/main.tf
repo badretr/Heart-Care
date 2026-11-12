@@ -23,18 +23,18 @@ resource "aws_db_subnet_group" "main" {
 
 # RDS Instance
 resource "aws_db_instance" "main" {
-  identifier              = "${var.project_name}-${var.environment}-db"
-  engine                  = "postgres"
-  engine_version          = var.engine_version
-  instance_class          = var.db_instance_class
-  allocated_storage       = var.allocated_storage
-  storage_type            = var.storage_type
-  storage_encrypted       = var.enable_encryption
-  db_name                 = var.db_name
-  username                = var.db_username
-  password                = var.db_password
-  db_subnet_group_name    = aws_db_subnet_group.main.name
-  vpc_security_group_ids  = [var.rds_security_group_id]
+  identifier             = "${var.project_name}-${var.environment}-db"
+  engine                 = "postgres"
+  engine_version         = var.engine_version
+  instance_class         = var.db_instance_class
+  allocated_storage      = var.allocated_storage
+  storage_type           = var.storage_type
+  storage_encrypted      = var.enable_encryption
+  db_name                = var.db_name
+  username               = var.db_username
+  password               = var.db_password
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [var.rds_security_group_id]
 
   # Backup and maintenance
   backup_retention_period = var.backup_retention_days
@@ -52,20 +52,20 @@ resource "aws_db_instance" "main" {
   ] : []
 
   # Performance Insights
-  performance_insights_enabled    = false
+  performance_insights_enabled = false
 
   # Monitoring
-  monitoring_interval             = 0
-  monitoring_role_arn             = null
+  monitoring_interval                 = 0
+  monitoring_role_arn                 = null
   iam_database_authentication_enabled = true
 
   # Parameters
   parameter_group_name = aws_db_parameter_group.main.name
 
   # Other
-  publicly_accessible     = false
-  skip_final_snapshot     = true
-  copy_tags_to_snapshot   = true
+  publicly_accessible   = false
+  skip_final_snapshot   = true
+  copy_tags_to_snapshot = true
 
   depends_on = [
     aws_db_subnet_group.main,
@@ -105,11 +105,11 @@ resource "aws_db_parameter_group" "main" {
 
 # Store password in SSM Parameter Store
 resource "aws_ssm_parameter" "db_password_actual" {
-  name              = "/${var.project_name}/${var.environment}/db/password"
-  description       = "Database password for ${var.environment}"
-  type              = "SecureString"
-  value             = var.db_password
-  overwrite         = true
+  name        = "/${var.project_name}/${var.environment}/db/password"
+  description = "Database password for ${var.environment}"
+  type        = "SecureString"
+  value       = var.db_password
+  overwrite   = true
 
   tags = merge(
     local.common_tags,
@@ -119,10 +119,10 @@ resource "aws_ssm_parameter" "db_password_actual" {
 
 # Store connection string in SSM Parameter Store
 resource "aws_ssm_parameter" "db_connection_string" {
-  name              = "/${var.project_name}/${var.environment}/db/connection-string"
-  description       = "Database connection string for ${var.environment}"
-  type              = "String"
-  value             = "postgresql://${var.db_username}@${aws_db_instance.main.endpoint}/${var.db_name}"
+  name        = "/${var.project_name}/${var.environment}/db/connection-string"
+  description = "Database connection string for ${var.environment}"
+  type        = "String"
+  value       = "postgresql://${var.db_username}@${aws_db_instance.main.endpoint}/${var.db_name}"
 
   tags = merge(
     local.common_tags,

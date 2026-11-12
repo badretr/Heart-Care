@@ -26,7 +26,7 @@ output "backend_config_dev" {
     encrypt        = true
     dynamodb_table = "${aws_dynamodb_table.terraform_lock[0].name}"
   EOT
-  ) : (<<-EOT
+    ) : (<<-EOT
     bucket = "${aws_s3_bucket.terraform_state.id}"
     key    = "dev/terraform.tfstate"
     region = "${var.aws_region}"
@@ -44,7 +44,7 @@ output "backend_config_test" {
     encrypt        = true
     dynamodb_table = "${aws_dynamodb_table.terraform_lock[0].name}"
   EOT
-  ) : (<<-EOT
+    ) : (<<-EOT
     bucket = "${aws_s3_bucket.terraform_state.id}"
     key    = "test/terraform.tfstate"
     region = "${var.aws_region}"
@@ -62,7 +62,7 @@ output "backend_config_prod" {
     encrypt        = true
     dynamodb_table = "${aws_dynamodb_table.terraform_lock[0].name}"
   EOT
-  ) : (<<-EOT
+    ) : (<<-EOT
     bucket = "${aws_s3_bucket.terraform_state.id}"
     key    = "prod/terraform.tfstate"
     region = "${var.aws_region}"

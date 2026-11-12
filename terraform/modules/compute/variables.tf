@@ -111,5 +111,5 @@ variable "owner" {
 variable "ami_id" {
   type        = string
   description = "AMI ID for instances"
-  default     = ""  # Will use latest Ubuntu 22.04
+  default     = "" # Will use latest Ubuntu 22.04
 }

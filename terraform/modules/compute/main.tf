@@ -13,7 +13,7 @@ locals {
 # Get latest Ubuntu 22.04 AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"]  # Canonical
+  owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
@@ -29,9 +29,9 @@ data "aws_ami" "ubuntu" {
 # User data script to deploy Heart Care Django app
 locals {
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    db_host  = var.db_host
-    db_name  = var.db_name
-    db_user  = var.db_user
+    db_host     = var.db_host
+    db_name     = var.db_name
+    db_user     = var.db_user
     environment = var.environment
   }))
 }
@@ -81,10 +81,10 @@ resource "aws_launch_template" "app" {
 
 # Auto Scaling Group
 resource "aws_autoscaling_group" "app" {
-  name_prefix          = "${var.project_name}-${var.environment}-"
-  vpc_zone_identifier  = var.private_app_subnet_ids
-  target_group_arns    = [var.target_group_arn]
-  health_check_type    = var.health_check_type
+  name_prefix               = "${var.project_name}-${var.environment}-"
+  vpc_zone_identifier       = var.private_app_subnet_ids
+  target_group_arns         = [var.target_group_arn]
+  health_check_type         = var.health_check_type
   health_check_grace_period = var.health_check_grace_period
 
   min_size         = var.min_size
@@ -119,7 +119,7 @@ resource "aws_autoscaling_group" "app" {
 # Auto Scaling Policies
 resource "aws_autoscaling_policy" "scale_up" {
   name                   = "${var.project_name}-${var.environment}-scale-up"
-  scaling_adjustment      = 1
+  scaling_adjustment     = 1
   adjustment_type        = "ChangeInCapacity"
   cooldown               = 300
   autoscaling_group_name = aws_autoscaling_group.app.name
@@ -127,7 +127,7 @@ resource "aws_autoscaling_policy" "scale_up" {
 
 resource "aws_autoscaling_policy" "scale_down" {
   name                   = "${var.project_name}-${var.environment}-scale-down"
-  scaling_adjustment      = -1
+  scaling_adjustment     = -1
   adjustment_type        = "ChangeInCapacity"
   cooldown               = 300
   autoscaling_group_name = aws_autoscaling_group.app.name

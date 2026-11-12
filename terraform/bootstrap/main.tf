@@ -83,9 +83,9 @@ resource "aws_s3_bucket_public_access_block" "terraform_state_logs" {
 resource "aws_dynamodb_table" "terraform_lock" {
   count = var.enable_lock_table ? 1 : 0
 
-  name           = local.table_name
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "LockID"
+  name         = local.table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
 
   attribute {
     name = "LockID"

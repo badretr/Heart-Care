@@ -120,7 +120,7 @@ resource "aws_security_group" "bastion" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Should be restricted to your IP
+    cidr_blocks = ["0.0.0.0/0"] # Should be restricted to your IP
     description = "SSH from admin"
   }
 
@@ -148,7 +148,7 @@ resource "aws_ssm_parameter" "db_password" {
   name        = "/${var.project_name}/${var.environment}/db-password"
   description = "Database password for ${var.environment} environment"
   type        = "SecureString"
-  value       = "changeme"  # Should be set from environment variable
+  value       = "changeme" # Should be set from environment variable
 
   tags = merge(
     local.common_tags,
