@@ -82,7 +82,7 @@ variable "storage_type" {
 variable "engine_version" {
   type        = string
   description = "PostgreSQL version"
-  default     = "15.4"
+  default     = "15.19"
 }
 
 variable "backup_retention_days" {

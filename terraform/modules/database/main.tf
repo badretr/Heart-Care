@@ -12,9 +12,8 @@ locals {
 
 # DB Subnet Group
 resource "aws_db_subnet_group" "main" {
-  name_prefix     = "${var.project_name}-${var.environment}-"
-  subnet_ids      = var.private_db_subnet_ids
-  skip_final_snapshot = true
+  name_prefix = "${var.project_name}-${var.environment}-"
+  subnet_ids  = var.private_db_subnet_ids
 
   tags = merge(
     local.common_tags,
@@ -54,12 +53,11 @@ resource "aws_db_instance" "main" {
 
   # Performance Insights
   performance_insights_enabled    = false
-  performance_insights_retention_period = 7
 
   # Monitoring
   monitoring_interval             = 0
   monitoring_role_arn             = null
-  enable_iam_database_authentication = true
+  iam_database_authentication_enabled = true
 
   # Parameters
   parameter_group_name = aws_db_parameter_group.main.name

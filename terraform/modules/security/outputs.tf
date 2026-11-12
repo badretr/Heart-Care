@@ -19,12 +19,12 @@ output "bastion_security_group_id" {
 }
 
 output "app_instance_role_arn" {
-  value       = aws_iam_role.app_instance_role.arn
+  value       = data.aws_iam_instance_profile.app.role_arn
   description = "ARN of the app instance role"
 }
 
 output "app_instance_profile_name" {
-  value       = aws_iam_instance_profile.app_instance_profile.name
+  value       = data.aws_iam_instance_profile.app.name
   description = "Name of the app instance profile"
 }
 

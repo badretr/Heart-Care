@@ -100,6 +100,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
   rule {
     id     = "delete-old-versions"
     status = var.enable_versioning ? "Enabled" : "Disabled"
+    filter {}
 
     noncurrent_version_expiration {
       noncurrent_days = var.lifecycle_expiration_days
@@ -109,6 +110,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
   rule {
     id     = "delete-incomplete-multipart-uploads"
     status = "Enabled"
+    filter {}
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
@@ -168,6 +170,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   rule {
     id     = "delete-old-logs"
     status = "Enabled"
+    filter {}
 
     expiration {
       days = 30

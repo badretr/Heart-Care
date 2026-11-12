@@ -24,3 +24,9 @@ variable "owner" {
   description = "Resource owner"
   default     = "DevOps"
 }
+
+variable "instance_profile_name" {
+  type        = string
+  description = "Existing IAM instance profile attached to app instances"
+  default     = "LabInstanceProfile"
+}

@@ -8,13 +8,8 @@ terraform {
     }
   }
 
-  backend "s3" {
-    # These values are configured via -backend-config flags in CI/CD or terraform init
-    # bucket         = "heartcare-terraform-state-XXX"
-    # key            = "dev/terraform.tfstate"
-    # region         = "eu-west-1"
-    # encrypt        = true
-    # dynamodb_table = "heartcare-terraform-lock"
+  backend "local" {
+    path = "../../terraform.tfstate"
   }
 }
 

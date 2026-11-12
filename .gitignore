@@ -1,6 +1,34 @@
-### Django ###
+# Django
 *.log
 *.pot
 *.pyc
 __pycache__/
 .vscode
+db.sqlite3
+media/
+
+# Terraform - secrets et état (ne jamais versionner)
+terraform/bootstrap/terraform.tfstate
+terraform/bootstrap/terraform.tfstate.backup
+terraform/bootstrap/terraform.tfvars
+terraform/bootstrap/.terraform/
+terraform/bootstrap/.terraform.lock.hcl
+terraform/environments/dev/terraform.tfstate
+terraform/environments/dev/terraform.tfstate.backup
+terraform/environments/dev/terraform.tfvars
+terraform/environments/dev/.terraform/
+terraform/environments/dev/.terraform.lock.hcl
+terraform/environments/dev/tfplan
+terraform/environments/test/terraform.tfvars
+terraform/environments/test/.terraform/
+terraform/environments/test/.terraform.lock.hcl
+terraform/environments/prod/terraform.tfvars
+terraform/environments/prod/.terraform/
+terraform/environments/prod/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# AWS credentials
+.aws/
+*.tfvars
+!*.tfvars.example

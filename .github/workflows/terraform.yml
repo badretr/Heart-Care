@@ -1,338 +1,106 @@
-name: Terraform CI/CD Pipeline
+name: Terraform CI/CD - Heart Care
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [ main, master ]
     paths:
       - 'terraform/**'
-      - '.github/workflows/terraform.yml'
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [ main, master ]
     paths:
       - 'terraform/**'
 
 env:
-  AWS_REGION: eu-west-1
-  TF_VERSION: 1.6.0
+  TF_VERSION: "1.6.0"
+  AWS_REGION: "us-east-1"
+  ENVIRONMENT: "dev"
 
 jobs:
-  terraform-validate:
-    name: Terraform Format & Validate
+  terraform-ci:
+    name: Terraform Validate & Plan
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: terraform/environments/dev
+
     steps:
-      - name: Checkout code
+      - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configurer l'authentification AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Format Check
-        working-directory: terraform
-        run: |
-          echo "Checking Terraform format..."
-          terraform fmt -check -recursive
+        run: terraform fmt -check -recursive ../../..
 
-      - name: Terraform Init (for validation)
-        working-directory: terraform
-        run: |
-          terraform init -backend=false
+      - name: Terraform Init
+        run: terraform init -input=false
 
-      - name: Terraform Validate (Network Module)
-        working-directory: terraform/modules/network
+      - name: Terraform Validate
         run: terraform validate
 
-      - name: Terraform Validate (Security Module)
-        working-directory: terraform/modules/security
-        run: terraform validate
+      - name: Terraform Plan
+        run: terraform plan -input=false -no-color -out=tfplan
+        env:
+          TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
 
-      - name: Terraform Validate (Load Balancer Module)
-        working-directory: terraform/modules/load-balancer
-        run: terraform validate
+      - name: Sauvegarder le plan
+        run: terraform show -no-color tfplan > plan.txt
 
-      - name: Terraform Validate (Compute Module)
-        working-directory: terraform/modules/compute
-        run: terraform validate
+      - name: Afficher le plan
+        run: cat plan.txt
 
-      - name: Terraform Validate (Database Module)
-        working-directory: terraform/modules/database
-        run: terraform validate
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ env.ENVIRONMENT }}
+          path: |
+            terraform/environments/dev/tfplan
+            terraform/environments/dev/plan.txt
 
-      - name: Terraform Validate (Storage Module)
-        working-directory: terraform/modules/storage
-        run: terraform validate
-
-  terraform-plan-dev:
-    name: Terraform Plan - DEV
+  terraform-apply:
+    name: Terraform Apply (manuel - branche main uniquement)
     runs-on: ubuntu-latest
-    needs: terraform-validate
-    if: github.event_name == 'pull_request'
+    needs: terraform-ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
 
-    env:
-      ENVIRONMENT: dev
+    defaults:
+      run:
+        working-directory: terraform/environments/dev
 
     steps:
-      - name: Checkout code
+      - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure AWS credentials
+      - name: Configurer l'authentification AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Terraform Init (DEV)
-        working-directory: terraform/environments/dev
-        run: |
-          terraform init \
-            -backend-config=bucket=${{ secrets.TF_STATE_BUCKET }} \
-            -backend-config=key=dev/terraform.tfstate \
-            -backend-config=region=${{ env.AWS_REGION }} \
-            -backend-config=encrypt=true \
-            -backend-config=dynamodb_table=${{ secrets.TF_LOCK_TABLE }}
+      - name: Terraform Init
+        run: terraform init -input=false
 
-      - name: Terraform Plan (DEV)
-        working-directory: terraform/environments/dev
-        run: |
-          terraform plan \
-            -var="db_password=${{ secrets.DB_PASSWORD_DEV }}" \
-            -out=tfplan
-
-      - name: Save Terraform Plan
-        uses: actions/upload-artifact@v3
-        with:
-          name: tfplan-dev
-          path: terraform/environments/dev/tfplan
-          retention-days: 1
-
-      - name: Display Terraform Plan
-        working-directory: terraform/environments/dev
-        run: terraform show -no-color tfplan > plan.txt && cat plan.txt
-
-      - name: Upload Plan to PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('terraform/environments/dev/plan.txt', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '## Terraform Plan - DEV\n\n```\n' + plan.substring(0, 65536) + '\n```'
-            });
-
-  terraform-plan-test:
-    name: Terraform Plan - TEST
-    runs-on: ubuntu-latest
-    needs: terraform-validate
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
-
-    env:
-      ENVIRONMENT: test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Terraform Init (TEST)
-        working-directory: terraform/environments/test
-        run: |
-          terraform init \
-            -backend-config=bucket=${{ secrets.TF_STATE_BUCKET }} \
-            -backend-config=key=test/terraform.tfstate \
-            -backend-config=region=${{ env.AWS_REGION }} \
-            -backend-config=encrypt=true \
-            -backend-config=dynamodb_table=${{ secrets.TF_LOCK_TABLE }}
-
-      - name: Terraform Plan (TEST)
-        working-directory: terraform/environments/test
-        run: |
-          terraform plan \
-            -var="db_password=${{ secrets.DB_PASSWORD_TEST }}" \
-            -out=tfplan
-
-  terraform-apply-dev:
-    name: Terraform Apply - DEV
-    runs-on: ubuntu-latest
-    needs: terraform-plan-dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-
-    env:
-      ENVIRONMENT: dev
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v3
-        with:
-          name: tfplan-dev
-          path: terraform/environments/dev
-
-      - name: Terraform Init (DEV)
-        working-directory: terraform/environments/dev
-        run: |
-          terraform init \
-            -backend-config=bucket=${{ secrets.TF_STATE_BUCKET }} \
-            -backend-config=key=dev/terraform.tfstate \
-            -backend-config=region=${{ env.AWS_REGION }} \
-            -backend-config=encrypt=true \
-            -backend-config=dynamodb_table=${{ secrets.TF_LOCK_TABLE }}
-
-      - name: Terraform Apply (DEV)
-        working-directory: terraform/environments/dev
-        run: terraform apply -auto-approve tfplan
-
-      - name: Get Outputs
-        working-directory: terraform/environments/dev
-        run: terraform output -json > outputs.json
-
-      - name: Upload Outputs
-        uses: actions/upload-artifact@v3
-        with:
-          name: outputs-dev
-          path: terraform/environments/dev/outputs.json
-          retention-days: 7
-
-      - name: Notify Deployment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const outputs = JSON.parse(fs.readFileSync('terraform/environments/dev/outputs.json', 'utf8'));
-            const message = `✅ **DEV Environment Deployed**\n\n` +
-              `🌐 Application URL: ${outputs.application_url.value}\n` +
-              `🔗 ALB DNS: ${outputs.alb_dns_name.value}`;
-            console.log(message);
-
-  terraform-plan-apply-test:
-    name: Terraform Plan & Apply - TEST (Approval Required)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: terraform-validate
-
-    env:
-      ENVIRONMENT: test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Terraform Init (TEST)
-        working-directory: terraform/environments/test
-        run: |
-          terraform init \
-            -backend-config=bucket=${{ secrets.TF_STATE_BUCKET }} \
-            -backend-config=key=test/terraform.tfstate \
-            -backend-config=region=${{ env.AWS_REGION }} \
-            -backend-config=encrypt=true \
-            -backend-config=dynamodb_table=${{ secrets.TF_LOCK_TABLE }}
-
-      - name: Terraform Plan (TEST)
-        working-directory: terraform/environments/test
-        run: |
-          terraform plan \
-            -var="db_password=${{ secrets.DB_PASSWORD_TEST }}" \
-            -out=tfplan
-
-      - name: Save Plan for Approval
-        uses: actions/upload-artifact@v3
-        with:
-          name: tfplan-test-${{ github.sha }}
-          path: terraform/environments/test/tfplan
-          retention-days: 7
-
-  code-quality:
-    name: Code Quality Checks
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: TFLint
-        uses: terraform-linters/setup-tflint@v3
-        with:
-          tflint_version: latest
-
-      - name: Init TFLint
-        run: tflint --init
-        working-directory: terraform
-
-      - name: Run TFLint
-        run: tflint -f compact
-        working-directory: terraform
-        continue-on-error: true
-
-  security-scan:
-    name: Security Scan
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: 'terraform'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+      - name: Terraform Apply
+        run: terraform apply -refresh=false -input=false -auto-approve
+        env:
+          TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}

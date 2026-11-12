@@ -6,11 +6,8 @@ terraform {
       version = "~> 5.0"
     }
   }
-  backend "s3" {
-    # bucket         = "heartcare-terraform-state-XXX"
-    # key            = "test/terraform.tfstate"
-    # region         = "eu-west-1"
-    # encrypt        = true
+  backend "local" {
+    path = "../../terraform.tfstate"
   }
 }
 provider "aws" {

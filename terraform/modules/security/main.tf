@@ -138,86 +138,14 @@ resource "aws_security_group" "bastion" {
   )
 }
 
-# IAM Role for EC2 instances
-resource "aws_iam_role" "app_instance_role" {
-  name_prefix = "${var.project_name}-${var.environment}-app-instance-"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = merge(
-    local.common_tags,
-    { Name = "${var.project_name}-${var.environment}-role-app" }
-  )
-}
-
-# IAM Role Policy for S3 access
-resource "aws_iam_role_policy" "app_s3_policy" {
-  name_prefix = "${var.project_name}-${var.environment}-s3-"
-  role        = aws_iam_role.app_instance_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject"
-        ]
-        Resource = "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket"
-        ]
-        Resource = "arn:aws:s3:::${var.project_name}-${var.environment}-*"
-      }
-    ]
-  })
-}
-
-# IAM Role Policy for CloudWatch Logs
-resource "aws_iam_role_policy" "app_cloudwatch_policy" {
-  name_prefix = "${var.project_name}-${var.environment}-cw-"
-  role        = aws_iam_role.app_instance_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:*:*:*"
-      }
-    ]
-  })
-}
-
-# IAM Instance Profile
-resource "aws_iam_instance_profile" "app_instance_profile" {
-  name_prefix = "${var.project_name}-${var.environment}-app-"
-  role        = aws_iam_role.app_instance_role.name
+# AWS Academy Learner Lab forbids iam:CreateRole; reuse the lab-provided instance profile.
+data "aws_iam_instance_profile" "app" {
+  name = var.instance_profile_name
 }
 
 # SSM Parameter for RDS password (for app to retrieve at runtime)
 resource "aws_ssm_parameter" "db_password" {
-  name_prefix = "/${var.project_name}/${var.environment}/db-password"
+  name        = "/${var.project_name}/${var.environment}/db-password"
   description = "Database password for ${var.environment} environment"
   type        = "SecureString"
   value       = "changeme"  # Should be set from environment variable

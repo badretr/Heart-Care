@@ -4,7 +4,7 @@ output "launch_template_id" {
 }
 
 output "launch_template_latest_version" {
-  value       = aws_launch_template.app.latest_version_number
+  value       = aws_launch_template.app.latest_version
   description = "Latest version of Launch Template"
 }
 
