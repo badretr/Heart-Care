@@ -157,3 +157,9 @@ variable "created_at" {
   description = "Creation date stamped on the CreatedAt tag. Kept static on purpose: timestamp() would change on every run, forcing a pointless update of every resource on each apply."
   default     = "2026-11-13"
 }
+
+variable "enable_iam_tags" {
+  type        = bool
+  description = "Taguer les ressources IAM. Garder false sur AWS Academy Learner Lab, qui refuse iam:TagPolicy et iam:TagInstanceProfile ; passer a true sur un compte AWS standard."
+  default     = false
+}

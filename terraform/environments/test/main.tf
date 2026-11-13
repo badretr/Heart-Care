@@ -49,6 +49,7 @@ module "iam" {
   app_bucket_arn     = module.storage.s3_bucket_arn
   logs_bucket_arn    = module.storage.s3_logs_bucket_arn
   create_iam_role    = var.create_iam_role
+  enable_iam_tags    = var.enable_iam_tags
   existing_role_name = var.existing_role_name
 }
 

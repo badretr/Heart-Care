@@ -245,7 +245,7 @@ local, et du secret GitHub `TF_VAR_DB_PASSWORD` dans le pipeline.
 | `alb_dns_name` | Nom DNS de l'ALB |
 | `vpc_id` | Identifiant du VPC |
 | `autoscaling_group_name` | Nom de l'Auto Scaling Group |
-| `db_instance_endpoint` | Point de connexion RDS (privé) |
+| `db_endpoint` | Point de connexion RDS (privé) |
 | `s3_bucket_id` | Bucket applicatif |
 | `iam_app_policy_arn` | Politique de moindre privilège |
 | `iam_app_instance_profile_name` | Instance profile des instances |

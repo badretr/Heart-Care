@@ -254,7 +254,7 @@ la terminaison, et l'onglet *Instances* avec trois entrées.
 ## Test 8 — Sécurité de la base de données
 
 ```bash
-DB=$(terraform output -raw db_instance_address)
+DB=$(terraform output -raw db_endpoint | cut -d: -f1)
 
 # La base est-elle déclarée publique ?
 aws rds describe-db-instances --db-instance-identifier heartcare-dev-db \
