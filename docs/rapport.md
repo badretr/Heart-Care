@@ -193,15 +193,18 @@ déployés.
 Une Pull Request produit donc trois plans consultables sans jamais rien
 appliquer, ce qui est le comportement demandé.
 
-**Une réserve subsiste.** L'approbation par un relecteur repose sur les
-protections de l'environnement GitHub, et le dépôt n'en déclare aujourd'hui
-aucun. GitHub crée alors l'environnement à la volée, sans protection : le
-déploiement reste manuel, mais non approuvé. Créer les environnements et y
-cocher *Required reviewers* est une manipulation d'interface de deux minutes,
-documentée dans le README, mais elle n'est pas faite à l'heure de ce rapport.
-La distinction mérite d'être posée : le workflow garantit par construction
-qu'aucun push ne déploie `prod` ; il ne peut pas, seul, imposer qu'un humain
-approuve.
+**L'approbation est effective.** Les environnements GitHub `test` et `prod`
+portent la protection `required_reviewers` et limitent les déploiements à la
+branche `master` : le job d'`apply` reste en attente tant qu'un relecteur ne
+l'a pas approuvé.
+
+Deux défauts ont été corrigés au passage. Le workflow testait
+`refs/heads/main`, alors que le travail se fait sur `master` : les deux jobs
+d'`apply` étaient **systématiquement ignorés**, sans que rien ne le signale —
+un pipeline vert qui n'applique jamais rien. La condition compare désormais à
+la branche par défaut du dépôt, résolue dynamiquement. Et le dépôt portait deux
+branches divergentes dès la racine, `main` ne contenant qu'un commit initial ;
+`master` est devenue la branche par défaut.
 
 ---
 
@@ -389,10 +392,9 @@ pouvoir créer un rôle sur ce compte. L'ALB n'écoute qu'en HTTP. L'emploi de
 `-refresh=false` signifie que Terraform ne détecte pas une dérive introduite à
 la main dans la console AWS — à retirer sur un compte sans la SCP concernée.
 
-Deux réglages relèvent de l'interface GitHub et restent à faire : rafraîchir
-les secrets AWS, qui expirent à chaque session du Learner Lab, et créer les
-environnements `dev`, `test` et `prod` avec des relecteurs obligatoires sur les
-deux derniers.
+Un seul point reste à reprendre à chaque session : les identifiants AWS du
+Learner Lab expirent, et les secrets GitHub doivent être rafraîchis pour que le
+pipeline puisse s'authentifier.
 
 ### Ce que le projet nous a appris
 

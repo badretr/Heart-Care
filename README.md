@@ -277,10 +277,19 @@ l'environnement choisi dans la liste, et uniquement depuis `main`. Aucun push
 ne peut déclencher un déploiement `test` ou `prod` : c'est garanti par le
 workflow lui-même, indépendamment de toute configuration.
 
-### Configuration requise dans GitHub
+### Branche de déclenchement
 
-Deux réglages sont à faire dans l'interface du dépôt. **Tant qu'ils ne sont pas
-faits, le pipeline échoue, et l'approbation par un relecteur n'est pas exigée.**
+Les deux jobs d'`apply` ne se déclenchent que depuis la **branche par défaut du
+dépôt**, résolue dynamiquement :
+
+```yaml
+github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+```
+
+Elle n'est pas codée en dur. Le dépôt utilise `master` ; la condition suit
+automatiquement si elle change.
+
+### Configuration GitHub
 
 #### a. Les secrets — *Settings → Secrets and variables → Actions*
 
@@ -297,17 +306,23 @@ faits, le pipeline échoue, et l'approbation par un relecteur n'est pas exigée.
 
 #### b. Les environnements — *Settings → Environments*
 
-Créer `dev`, `test` et `prod`. Sur `test` et `prod`, cocher
-**Required reviewers** et s'y désigner.
+Trois environnements sont déclarés :
 
-Sans cette étape, GitHub crée l'environnement à la volée au premier usage,
-**sans aucune protection** : le déploiement reste manuel, mais personne n'a à
-l'approuver. C'est cette case qui matérialise la validation manuelle exigée par
-le cahier des charges (point 19.1.9).
+| Environnement | Relecteur obligatoire | Branches autorisées |
+|---|---|---|
+| `dev` | non | toutes |
+| `test` | **oui** | `master` |
+| `prod` | **oui** | `master` |
 
-Tant que les environnements n'existent pas, l'extension GitHub Actions de VS
-Code signale `Value 'dev' is not valid` sur la ligne `environment:` — c'est
-précisément ce réglage manquant qu'elle signale.
+L'approbation obligatoire sur `test` et `prod` est ce qui matérialise la
+validation manuelle exigée au point 19.1.9 du cahier des charges : le job
+d'`apply` reste en attente jusqu'à ce qu'un relecteur l'approuve dans l'onglet
+*Actions*.
+
+> Si ces environnements sont absents, GitHub les crée à la volée au premier
+> usage, **sans aucune protection** : le déploiement reste manuel, mais
+> personne n'a à l'approuver. L'extension GitHub Actions de VS Code signale
+> alors `Value 'dev' is not valid` sur la ligne `environment:`.
 
 ---
 

@@ -114,14 +114,13 @@ Le backend S3 satisfait les exigences de la section 16.1 du cahier des charges :
 - Les identifiants proviennent du coffre GitHub, jamais du dépôt.
 - GitHub masque automatiquement les valeurs de secrets dans les journaux.
 
-**Réserve à lever.** L'approbation par un relecteur avant `apply` (exigence
-19.1, point 9) repose sur les protections de l'environnement GitHub. Or le
-dépôt n'en déclare aujourd'hui **aucun** : GitHub crée l'environnement à la
-volée au premier usage, sans protection. Le déploiement de `test` et `prod`
-reste manuel, mais personne n'a à l'approuver. Pour que l'exigence soit
-réellement satisfaite, il faut créer les environnements `dev`, `test` et `prod`
-dans *Settings → Environments* et cocher **Required reviewers** sur les deux
-derniers. La procédure figure au point 7 du [README](../README.md).
+- l'approbation par un relecteur est **effective** sur `test` et `prod` : les
+  environnements GitHub correspondants portent la protection
+  `required_reviewers`, et leur politique de branche limite les déploiements à
+  `master`. Le job d'`apply` reste en attente tant qu'un relecteur ne l'a pas
+  approuvé (exigence 19.1, point 9).
+- les jobs d'`apply` ne se déclenchent que depuis la branche par défaut du
+  dépôt, résolue dynamiquement plutôt que codée en dur.
 
 ## 9. Points ouverts, assumés
 
