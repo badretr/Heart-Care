@@ -44,15 +44,15 @@ jobs:
 
     steps:
       - name: Recuperer le depot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Installer Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Configurer l'authentification AWS
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -82,7 +82,7 @@ jobs:
         run: cat plan.txt
 
       - name: Publier le plan en artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-${{ matrix.environment }}
           path: |
@@ -107,13 +107,13 @@ jobs:
         working-directory: terraform/environments/dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -135,7 +135,7 @@ jobs:
   # ne peut donc jamais partir automatiquement d'un push.
   # ---------------------------------------------------------------------
   apply-manuel:
-    name: "Appliquer (${{ github.event.inputs.environment }}) - validation manuelle"
+    name: "Appliquer (test ou prod) - declenchement manuel et approbation"
     runs-on: ubuntu-latest
     needs: terraform-ci
     if: >-
@@ -148,13 +148,13 @@ jobs:
         working-directory: terraform/environments/${{ github.event.inputs.environment }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -162,7 +162,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Environnement cible
-        run: echo "Deploiement de l'environnement ${{ github.event.inputs.environment }}"
+        run: |
+          echo "::notice title=Environnement::Deploiement de ${{ github.event.inputs.environment }}"
+          echo "Environnement cible : ${{ github.event.inputs.environment }}"
 
       - name: Terraform Init
         run: terraform init -input=false
