@@ -438,6 +438,7 @@ aws ssm send-command --instance-ids <instance-id> \
 | [docs/tests.md](docs/tests.md) | Les neuf tests obligatoires, procédures et résultats |
 | [docs/rapport.md](docs/rapport.md) | Rapport de synthèse |
 | [docs/soutenance.md](docs/soutenance.md) | Support de présentation et déroulé de la démonstration |
+| [docs/captures.md](docs/captures.md) | Les huit captures demandées, liens directs et contenu attendu |
 
 ---
 
