@@ -425,10 +425,16 @@ aws ssm send-command --instance-ids <instance-id> \
 
 ---
 
-## 11. Tests
+## 11. Documentation
 
-Les neuf tests obligatoires, leur procédure et leurs résultats constatés sont
-consignés dans **[docs/tests.md](docs/tests.md)**.
+| Document | Contenu |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | Schéma, Security Groups, routage, chemin d'une requête |
+| [docs/securite.md](docs/securite.md) | Justification de chaque choix de sécurité, limites assumées |
+| [docs/couts.md](docs/couts.md) | Estimation détaillée, leviers de réduction |
+| [docs/tests.md](docs/tests.md) | Les neuf tests obligatoires, procédures et résultats |
+| [docs/rapport.md](docs/rapport.md) | Rapport de synthèse |
+| [docs/soutenance.md](docs/soutenance.md) | Support de présentation et déroulé de la démonstration |
 
 ---
 
