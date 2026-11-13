@@ -1,33 +1,52 @@
-# AWS Configuration
-aws_region = "us-east-1"
+# Exemple de configuration pour l'environnement dev.
+# Developpement et essais rapides. Dimensionnement minimal.
+#
+# Copier ce fichier en terraform.tfvars, puis adapter les valeurs :
+#     cp terraform.tfvars.example terraform.tfvars
+#
+# terraform.tfvars est exclu par .gitignore et ne doit JAMAIS etre versionne.
+#
+# AUCUN SECRET DANS CE FICHIER. Le mot de passe de la base n'y figure pas :
+# il est fourni par la variable d'environnement TF_VAR_db_password,
+#     export TF_VAR_db_password='<mot-de-passe>'
+# ou, dans le pipeline, par le secret GitHub TF_VAR_DB_PASSWORD.
 
-# Project Configuration
+# Region et identification
+aws_region   = "us-east-1"
 environment  = "dev"
 project_name = "heartcare"
 owner        = "DevOps Team"
 
-# Network Configuration
-vpc_cidr                     = "10.20.0.0/16"
-availability_zones           = ["us-east-1a", "us-east-1b"]
-public_subnet_cidrs          = ["10.20.1.0/24", "10.20.2.0/24"]
-private_app_subnet_cidrs     = ["10.20.11.0/24", "10.20.12.0/24"]
-private_db_subnet_cidrs      = ["10.20.21.0/24", "10.20.22.0/24"]
+# Reseau
+vpc_cidr                 = "10.20.0.0/16"
+availability_zones       = ["us-east-1a", "us-east-1b"]
+public_subnet_cidrs      = ["10.20.1.0/24", "10.20.2.0/24"]
+private_app_subnet_cidrs = ["10.20.11.0/24", "10.20.12.0/24"]
+private_db_subnet_cidrs  = ["10.20.21.0/24", "10.20.22.0/24"]
 
-# Compute Configuration
-instance_type     = "t3.micro"
-min_size          = 2
-max_size          = 3
-desired_capacity  = 2
+# Calcul
+instance_type    = "t3.micro"
+min_size         = 2
+max_size         = 3
+desired_capacity = 2
 
-# Database Configuration
-db_instance_class      = "db.t3.micro"
-db_allocated_storage   = 20
-db_username            = "heartcare"
-db_password            = "ChangeMe123!"  # CHANGE THIS!
-db_name                = "heartcare"
-backup_retention_days  = 7
-multi_az               = false
+# Base de donnees
+db_instance_class     = "db.t3.micro"
+db_allocated_storage  = 20
+db_username           = "heartcare"
+db_name               = "heartcare"
+backup_retention_days = 7
+multi_az              = false
 
-# Storage Configuration
+# Stockage
 enable_versioning = true
 enable_encryption = true
+
+# IAM
+# Laisser a false sur AWS Academy Learner Lab : iam:CreateRole,
+# iam:AttachRolePolicy, iam:TagPolicy et iam:TagInstanceProfile y sont
+# refuses par une SCP. Passer les deux a true sur un compte AWS standard
+# pour que la politique de moindre privilege s'applique reellement.
+create_iam_role    = false
+enable_iam_tags    = false
+existing_role_name = "LabRole"

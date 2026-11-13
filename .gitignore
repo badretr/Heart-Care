@@ -1,34 +1,53 @@
-# Django
+# ----- Terraform -----
+# Etat : contient des valeurs sensibles en clair, ne jamais versionner.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Repertoires de travail et verrous locaux
+**/.terraform/
+.terraform.lock.hcl
+
+# Plans binaires
+*.tfplan
+tfplan
+plan.txt
+
+# Variables : seuls les .tfvars.example sont versionnes.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Fichiers de surcharge locaux
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Journaux d'execution Terraform
+crash.log
+crash.*.log
+
+# ----- Identifiants -----
+.aws/
+credentials
+*.pem
+*.key
+
+# ----- Django -----
 *.log
 *.pot
 *.pyc
 __pycache__/
-.vscode
 db.sqlite3
 media/
+staticfiles/
+.env
+venv/
+.venv/
 
-# Terraform - secrets et état (ne jamais versionner)
-terraform/bootstrap/terraform.tfstate
-terraform/bootstrap/terraform.tfstate.backup
-terraform/bootstrap/terraform.tfvars
-terraform/bootstrap/.terraform/
-terraform/bootstrap/.terraform.lock.hcl
-terraform/environments/dev/terraform.tfstate
-terraform/environments/dev/terraform.tfstate.backup
-terraform/environments/dev/terraform.tfvars
-terraform/environments/dev/.terraform/
-terraform/environments/dev/.terraform.lock.hcl
-terraform/environments/dev/tfplan
-terraform/environments/test/terraform.tfvars
-terraform/environments/test/.terraform/
-terraform/environments/test/.terraform.lock.hcl
-terraform/environments/prod/terraform.tfvars
-terraform/environments/prod/.terraform/
-terraform/environments/prod/.terraform.lock.hcl
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
-
-# AWS credentials
-.aws/
-*.tfvars
-!*.tfvars.example
+# ----- Editeurs et systeme -----
+.vscode/
+.idea/
+*.swp
+.DS_Store

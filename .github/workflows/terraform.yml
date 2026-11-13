@@ -1,27 +1,49 @@
 name: Terraform CI/CD - Heart Care
 
+# Le pipeline s'execute a chaque Pull Request et a chaque push sur main.
+# Il verifie le code et produit un plan consultable pour les trois
+# environnements. L'application du plan est reservee a la branche main et,
+# pour test et prod, a un declenchement manuel soumis a approbation.
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environnement a deployer"
+        required: true
+        type: choice
+        options: [dev, test, prod]
 
 env:
   TF_VERSION: "1.6.0"
   AWS_REGION: "us-east-1"
-  ENVIRONMENT: "dev"
+
+permissions:
+  contents: read
 
 jobs:
+  # ---------------------------------------------------------------------
+  # Verification du code et production d'un plan, pour les trois
+  # environnements. Ne modifie jamais l'infrastructure.
+  # ---------------------------------------------------------------------
   terraform-ci:
-    name: Terraform Validate & Plan
+    name: "Verifier et planifier (${{ matrix.environment }})"
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, test, prod]
 
     defaults:
       run:
-        working-directory: terraform/environments/dev
+        working-directory: terraform/environments/${{ matrix.environment }}
 
     steps:
-      - name: Récupérer le dépôt
+      - name: Recuperer le depot
         uses: actions/checkout@v4
 
       - name: Installer Terraform
@@ -44,54 +66,99 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform Validate
-        run: terraform validate
+        run: terraform validate -no-color
 
+      # -refresh=false contourne la SCP AWS Academy qui refuse
+      # s3:GetBucketObjectLockConfiguration. A retirer sur un compte standard.
       - name: Terraform Plan
-        run: terraform plan -input=false -no-color -out=tfplan
+        run: terraform plan -refresh=false -input=false -no-color -out=tfplan
         env:
           TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
 
-      - name: Sauvegarder le plan
+      - name: Produire le plan lisible
         run: terraform show -no-color tfplan > plan.txt
 
       - name: Afficher le plan
         run: cat plan.txt
 
-      - name: Upload plan artifact
+      - name: Publier le plan en artefact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ env.ENVIRONMENT }}
+          name: tfplan-${{ matrix.environment }}
           path: |
-            terraform/environments/dev/tfplan
-            terraform/environments/dev/plan.txt
+            terraform/environments/${{ matrix.environment }}/tfplan
+            terraform/environments/${{ matrix.environment }}/plan.txt
+          retention-days: 30
 
-  terraform-apply:
-    name: Terraform Apply (manuel - branche main uniquement)
+  # ---------------------------------------------------------------------
+  # dev : applique automatiquement sur un push vers main.
+  # ---------------------------------------------------------------------
+  apply-dev:
+    name: "Appliquer (dev)"
     runs-on: ubuntu-latest
     needs: terraform-ci
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
+    environment: dev
 
     defaults:
       run:
         working-directory: terraform/environments/dev
 
     steps:
-      - name: Récupérer le dépôt
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Installer Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configurer l'authentification AWS
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        run: terraform apply -refresh=false -input=false -auto-approve
+        env:
+          TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+
+  # ---------------------------------------------------------------------
+  # test et prod : declenchement manuel uniquement (workflow_dispatch), et
+  # soumis a l'approbation configuree sur l'environnement GitHub
+  # correspondant. Un deploiement prod ne peut donc jamais partir
+  # automatiquement d'un push.
+  # ---------------------------------------------------------------------
+  apply-manuel:
+    name: "Appliquer (${{ github.event.inputs.environment }}) - validation manuelle"
+    runs-on: ubuntu-latest
+    needs: terraform-ci
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: ${{ github.event.inputs.environment }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Environnement cible
+        run: echo "Deploiement de l'environnement ${{ github.event.inputs.environment }}"
 
       - name: Terraform Init
         run: terraform init -input=false
