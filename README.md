@@ -374,9 +374,12 @@ Le backend S3 distant, lui, **fonctionne normalement** : il n'utilise que
 
 ### Choix assumés, à revoir en production
 
-- L'ALB n'écoute qu'en **HTTP** tant que `certificate_arn` est vide. Le
-  listener HTTPS et la redirection depuis HTTP sont codés et s'activent dès
-  qu'un certificat ACM est fourni (voir [docs/securite.md](docs/securite.md)).
+- Le Security Group de l'ALB accepte bien **HTTP et HTTPS** depuis Internet
+  (exigence 8). En revanche, **côté listeners**, seul le port 80 est servi tant
+  que `certificate_arn` est vide : le trafic navigateur-ALB n'est donc pas
+  chiffré. Le listener HTTPS et la redirection depuis HTTP sont codés et
+  s'activent dès qu'un certificat ACM est fourni — voir
+  [docs/securite.md](docs/securite.md).
 - Le Security Group bastion ouvre le **port 22 à `0.0.0.0/0`** ; à restreindre.
 - RDS a `deletion_protection = false` et `skip_final_snapshot = true`, pour
   permettre la destruction complète demandée par le cahier des charges.

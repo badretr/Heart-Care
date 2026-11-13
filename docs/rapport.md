@@ -607,7 +607,7 @@ Chaque exigence a été vérifiée par une commande, non par relecture. Synthès
 | 5 | Rôles IAM de moindre privilège | partiel | politique créée, attachement refusé par SCP |
 | 5 | Backend distant | conforme | S3 chiffré, versionné, verrouillé |
 | 5 | Pipeline CI/CD | conforme | GitHub Actions, run vert |
-| 8 | ALB accepte HTTP/HTTPS | partiel | listener HTTPS codé, sans certificat |
+| 8 | ALB accepte HTTP/HTTPS depuis Internet | conforme | `sg-alb` : 80 et 443 depuis `0.0.0.0/0` |
 | 8 | App n'accepte que depuis le SG de l'ALB | conforme | règle lue dans AWS |
 | 8 | Base n'accepte que depuis le SG applicatif | conforme | règle lue dans AWS |
 | 8 | Aucun secret dans Git | conforme | `git grep` sans résultat |
@@ -627,9 +627,15 @@ Chaque exigence a été vérifiée par une commande, non par relecture. Synthès
 | 23 | Ni `.terraform` ni `tfstate` versionnés | conforme | `git ls-files` sans résultat |
 | 24, 25 | Livrables et contenu du README | conforme | ce document et les autres |
 
-Deux lignes seulement sont marquées « partiel », et toutes deux pour la même
-raison : une contrainte extérieure au compte, documentée, avec le code en
-place pour lever la restriction dès qu'elle disparaît.
+Une seule ligne est marquée « partiel » : le moindre privilège IAM, dont
+l'attachement au rôle est refusé par une SCP extérieure au compte. Le code est
+en place pour lever la restriction dès qu'elle disparaît.
+
+La règle « le Load Balancer accepte HTTP/HTTPS depuis Internet » appartient à
+la section **8, Règles de sécurité minimales**, dont toutes les puces décrivent
+des règles de Security Group. Elle porte donc sur le pare-feu de l'ALB, et non
+sur ses listeners : `sg-alb` autorise bien 80 et 443 depuis `0.0.0.0/0`. Le
+listener HTTPS, lui, relève du chiffrement en transit, traité en 4.5.
 
 ## 10. Bilan
 

@@ -133,7 +133,11 @@ l'administrateur. Le besoin est d'ailleurs discutable : la politique IAM
 accorde déjà Session Manager, qui permet d'ouvrir une session sur une instance
 sans aucun port ouvert. Le bastion pourrait être supprimé.
 
-**L'ALB n'écoute qu'en HTTP tant qu'aucun certificat n'est fourni.** Le module
+**Le Security Group de l'ALB accepte HTTP et HTTPS depuis Internet**, comme
+l'exige la section 8 : ports 80 et 443 ouverts depuis `0.0.0.0/0`. C'est une
+règle de pare-feu, distincte des listeners effectivement montés.
+
+**Côté listeners, l'ALB n'écoute qu'en HTTP tant qu'aucun certificat n'est fourni.** Le module
 `load-balancer` crée un listener HTTPS sur le port 443, ainsi qu'une
 redirection de HTTP vers HTTPS, **dès que `certificate_arn` est renseigné** :
 
