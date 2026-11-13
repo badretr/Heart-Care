@@ -138,10 +138,7 @@ resource "aws_security_group" "bastion" {
   )
 }
 
-# AWS Academy Learner Lab forbids iam:CreateRole; reuse the lab-provided instance profile.
-data "aws_iam_instance_profile" "app" {
-  name = var.instance_profile_name
-}
+# Les roles, politiques et instance profiles sont geres par le module iam.
 
 # SSM Parameter for RDS password (for app to retrieve at runtime)
 resource "aws_ssm_parameter" "db_password" {

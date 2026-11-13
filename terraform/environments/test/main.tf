@@ -4,7 +4,7 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
     Owner       = var.owner
-    CreatedAt   = timestamp()
+    CreatedAt   = var.created_at
   }
 }
 
@@ -32,6 +32,24 @@ module "security" {
   project_name = var.project_name
   owner        = var.owner
   common_tags  = local.common_tags
+}
+
+# IAM Module (politique de moindre privilege + instance profile)
+module "iam" {
+  source = "../../modules/iam"
+
+  providers = {
+    aws.untagged = aws.untagged
+  }
+
+  environment        = var.environment
+  project_name       = var.project_name
+  owner              = var.owner
+  common_tags        = local.common_tags
+  app_bucket_arn     = module.storage.s3_bucket_arn
+  logs_bucket_arn    = module.storage.s3_logs_bucket_arn
+  create_iam_role    = var.create_iam_role
+  existing_role_name = var.existing_role_name
 }
 
 # Database Module
@@ -73,7 +91,7 @@ module "compute" {
   private_app_subnet_ids    = module.network.private_app_subnet_ids
   app_security_group_id     = module.security.app_security_group_id
   target_group_arn          = module.load_balancer.target_group_arn
-  iam_instance_profile_name = module.security.app_instance_profile_name
+  iam_instance_profile_name = module.iam.app_instance_profile_name
   environment               = var.environment
   project_name              = var.project_name
   instance_type             = var.instance_type

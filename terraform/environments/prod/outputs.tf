@@ -101,3 +101,24 @@ output "application_url" {
   value       = "http://${module.load_balancer.alb_dns_name}"
   description = "Application URL"
 }
+
+# IAM outputs
+output "iam_app_policy_arn" {
+  value       = module.iam.app_policy_arn
+  description = "ARN de la politique de moindre privilege des instances applicatives"
+}
+
+output "iam_app_instance_profile_name" {
+  value       = module.iam.app_instance_profile_name
+  description = "Instance profile gere par Terraform et attache aux instances"
+}
+
+output "iam_app_role_arn" {
+  value       = module.iam.app_role_arn
+  description = "Role IAM porte par l'instance profile applicatif"
+}
+
+output "iam_policy_attached_to_role" {
+  value       = module.iam.policy_attached_to_role
+  description = "Indique si la politique est rattachee au role (false sur Learner Lab: iam:AttachRolePolicy est refuse)"
+}

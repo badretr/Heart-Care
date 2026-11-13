@@ -138,3 +138,22 @@ variable "enable_encryption" {
   description = "Enable encryption"
   default     = true
 }
+
+# IAM variables
+variable "create_iam_role" {
+  type        = bool
+  description = "Create the application IAM role. Keep false on AWS Academy Learner Lab (iam:CreateRole is denied); set true on a standard AWS account."
+  default     = false
+}
+
+variable "existing_role_name" {
+  type        = string
+  description = "Pre-provisioned IAM role bound to the instance profile when create_iam_role is false"
+  default     = "LabRole"
+}
+
+variable "created_at" {
+  type        = string
+  description = "Creation date stamped on the CreatedAt tag. Kept static on purpose: timestamp() would change on every run, forcing a pointless update of every resource on each apply."
+  default     = "2026-11-13"
+}

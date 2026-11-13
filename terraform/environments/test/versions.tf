@@ -16,3 +16,11 @@ provider "aws" {
     tags = local.common_tags
   }
 }
+
+# Provider sans default_tags, reserve aux ressources IAM : AWS Academy Learner
+# Lab refuse iam:TagPolicy / iam:TagInstanceProfile, donc les tags injectes
+# globalement feraient echouer la creation de ces ressources.
+provider "aws" {
+  alias  = "untagged"
+  region = var.aws_region
+}
