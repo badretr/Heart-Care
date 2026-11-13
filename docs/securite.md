@@ -205,6 +205,12 @@ Le provider AWS appelle cette API à chaque lecture d'une ressource
   défaut des variables et divergeait du poste de développement sur le tag
   `Owner`. Les deux faisaient apparaître une modification sur toutes les
   ressources.
+- Au **premier** déploiement d'un environnement, la lecture qui suit la
+  création d'un bucket échoue elle aussi, et Terraform marque alors la
+  ressource `tainted` : il voudra la remplacer à chaque plan suivant, en
+  échouant à chaque fois. Le bucket existe pourtant et est correctement
+  configuré. `terraform untaint` sur les deux buckets, puis un nouvel `apply`,
+  règle le cas une fois pour toutes.
 - Les deux buckets déclarent enfin `lifecycle { ignore_changes = [tags,
   tags_all] }`. Sans cela, la moindre dérive de tag bloquerait l'`apply` de
   façon définitive : la modification est appliquée côté AWS, mais Terraform ne

@@ -159,6 +159,19 @@ terraform output alb_url
 Comptez une dizaine de minutes : la création des NAT Gateways et de l'instance
 RDS est longue, et le `user_data` installe ensuite l'application.
 
+> **Au tout premier déploiement d'un environnement**, l'`apply` s'arrête sur
+> une erreur de lecture des buckets S3 — la SCP d'AWS Academy, décrite en
+> [section 9](#9-limites-connues). Les buckets sont pourtant créés. Retirer la
+> marque et réappliquer suffit :
+>
+> ```bash
+> terraform untaint module.storage.aws_s3_bucket.main
+> terraform untaint module.storage.aws_s3_bucket.logs
+> terraform apply -refresh=false
+> ```
+>
+> L'étape ne se reproduit pas ensuite.
+
 > **Pourquoi `-refresh=false` ?** Une SCP d'AWS Academy refuse
 > `s3:GetBucketObjectLockConfiguration`, que le provider appelle en relisant
 > toute ressource `aws_s3_bucket`. Sur un compte AWS standard, retirez ce
@@ -400,6 +413,7 @@ Justifications complètes dans **[docs/securite.md](docs/securite.md)**.
 | `502 Bad Gateway` | gunicorn arrêté | `systemctl status heartcare` sur l'instance |
 | `terraform fmt -check` échoue en CI | Fichiers non formatés | `terraform fmt -recursive .` puis commit |
 | Plan non vide juste après un apply | Dérive ou valeur instable | Vérifier qu'aucun tag n'utilise `timestamp()` |
+| `aws_s3_bucket ... is tainted, so must be replaced` | Premier déploiement d'un environnement sous la SCP AWS Academy | `terraform untaint module.storage.aws_s3_bucket.main` puis `.logs`, et réappliquer |
 
 ### Ouvrir une session sur une instance
 

@@ -390,7 +390,36 @@ Seuls les buckets du backend restent hors Terraform, créés par
 `scripts/bootstrap.sh`. La configuration Terraform équivalente est conservée
 dans `terraform/bootstrap/` comme référence pour un compte standard.
 
-### 6.4 Un diff perpétuel qui bloquait S3
+### 6.4 Le bucket qui naît « tainted »
+
+Le déploiement de l'environnement `test`, le premier créé depuis zéro après
+`dev`, a révélé un dernier visage de la même SCP.
+
+`ignore_changes` règle le cas des mises à jour. Il ne règle pas celui de la
+**création** : Terraform relit toute ressource qu'il vient de créer, pour en
+enregistrer les attributs. Cette lecture échoue, et Terraform marque alors le
+bucket `tainted`. Au plan suivant, il veut le **remplacer** — le détruire puis
+le recréer — ce qui échouerait exactement de la même façon. L'environnement
+serait indéployable.
+
+Le bucket existe pourtant dans AWS, correctement configuré. Seule la trace
+manque dans l'état. Deux commandes suffisent :
+
+```bash
+terraform untaint module.storage.aws_s3_bucket.main
+terraform untaint module.storage.aws_s3_bucket.logs
+terraform apply -refresh=false
+```
+
+Le second `apply` crée les onze sous-ressources restantes, et le plan redevient
+stable. L'étape ne se reproduit pas : elle n'est nécessaire qu'au tout premier
+déploiement d'un environnement.
+
+C'est la troisième fois que la même SCP se manifeste sous une forme différente
+— au `refresh`, à la mise à jour, puis à la création. Chaque fois, le symptôme
+désignait une cause différente de la vraie.
+
+### 6.5 Un diff perpétuel qui bloquait S3
 
 Chaque `apply` tentait de modifier les deux buckets applicatifs, ce qui
 déclenchait la lecture interdite et faisait échouer l'opération. La cause était

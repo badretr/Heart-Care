@@ -48,7 +48,32 @@ lifecycle {
 ```
 
 Les tags restent corrects côté AWS, posés à la création, et vérifiables par
-`aws s3api get-bucket-tagging --bucket <nom>`. **À retirer sur un compte AWS
+`aws s3api get-bucket-tagging --bucket <nom>`.
+
+## Créer un environnement neuf : l'étape de `untaint`
+
+`ignore_changes` règle le cas des mises à jour, mais **pas celui de la
+création**. Quand Terraform crée un bucket pour la première fois, il le relit
+aussitôt pour enregistrer ses attributs. Cette lecture échoue, et Terraform
+marque alors la ressource **tainted** : au `plan` suivant, il veut la
+remplacer, c'est-à-dire la détruire puis la recréer — ce qui échouerait de la
+même façon, indéfiniment.
+
+Le bucket existe pourtant bel et bien dans AWS, correctement configuré. Il
+suffit de retirer la marque :
+
+```bash
+terraform untaint module.storage.aws_s3_bucket.main
+terraform untaint module.storage.aws_s3_bucket.logs
+terraform apply -refresh=false
+```
+
+Le second `apply` crée alors les sous-ressources qui dépendent des buckets —
+versioning, chiffrement, blocage public, cycle de vie, journalisation,
+politique — et le plan redevient stable.
+
+**Cette étape n'est nécessaire qu'au premier déploiement d'un environnement**,
+et uniquement sur un compte soumis à cette SCP. **À retirer sur un compte AWS
 sans cette SCP.** Le pipeline emploie par ailleurs `-refresh=false`, détaillé
 dans [docs/securite.md](../../../docs/securite.md).
 
