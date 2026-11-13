@@ -226,13 +226,16 @@ Heart-Care-main/
 | `create_iam_role` | `false` | `true` sur un compte AWS standard |
 | `enable_iam_tags` | `false` | `true` sur un compte AWS standard |
 
-Partir de `terraform.tfvars.example`, présent dans chaque environnement :
+Chaque environnement porte son `terraform.tfvars`, **versionné**. C'est
+délibéré : ce fichier ne contient aucun secret, et en faire la source de vérité
+unique garantit que le pipeline et le poste de développement planifient sur les
+mêmes entrées. Quand il ne l'était pas, la CI retombait sur les valeurs par
+défaut des variables, divergeait du local sur un simple tag, et recalculait une
+modification sur toutes les ressources — ce qui faisait échouer l'`apply`.
 
-```bash
-cp terraform.tfvars.example terraform.tfvars
-```
-
-`terraform.tfvars` est exclu par `.gitignore` et ne doit jamais être versionné.
+Le mot de passe de la base n'y figure pas. Il vient de `TF_VAR_db_password` en
+local, et du secret GitHub `TF_VAR_DB_PASSWORD` dans le pipeline.
+`terraform.tfvars.example` reste fourni comme modèle commenté.
 
 ### Sorties principales
 

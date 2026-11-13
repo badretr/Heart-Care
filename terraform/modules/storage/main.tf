@@ -22,6 +22,22 @@ resource "aws_s3_bucket" "main" {
     local.common_tags,
     { Name = "${var.project_name}-${var.environment}-bucket" }
   )
+
+  # AWS Academy Learner Lab : une SCP d'organisation refuse
+  # s3:GetBucketObjectLockConfiguration, que le provider appelle en relisant la
+  # ressource apres toute mise a jour. Les tags sont bien appliques sur le
+  # bucket, mais Terraform ne peut pas en prendre acte, et replanifie donc la
+  # meme modification a chaque execution, qui echoue a chaque fois.
+  #
+  # Ignorer les tags rend le plan stable. Ils restent corrects cote AWS :
+  # ils sont poses a la creation et verifiables par
+  #     aws s3api get-bucket-tagging --bucket <nom>
+  #
+  # A retirer sur un compte AWS sans cette SCP, ou Terraform les gere
+  # normalement. Voir docs/securite.md.
+  lifecycle {
+    ignore_changes = [tags, tags_all]
+  }
 }
 
 # Enable versioning
@@ -134,6 +150,22 @@ resource "aws_s3_bucket" "logs" {
     local.common_tags,
     { Name = "${var.project_name}-${var.environment}-logs" }
   )
+
+  # AWS Academy Learner Lab : une SCP d'organisation refuse
+  # s3:GetBucketObjectLockConfiguration, que le provider appelle en relisant la
+  # ressource apres toute mise a jour. Les tags sont bien appliques sur le
+  # bucket, mais Terraform ne peut pas en prendre acte, et replanifie donc la
+  # meme modification a chaque execution, qui echoue a chaque fois.
+  #
+  # Ignorer les tags rend le plan stable. Ils restent corrects cote AWS :
+  # ils sont poses a la creation et verifiables par
+  #     aws s3api get-bucket-tagging --bucket <nom>
+  #
+  # A retirer sur un compte AWS sans cette SCP, ou Terraform les gere
+  # normalement. Voir docs/securite.md.
+  lifecycle {
+    ignore_changes = [tags, tags_all]
+  }
 }
 
 resource "aws_s3_bucket_versioning" "logs" {

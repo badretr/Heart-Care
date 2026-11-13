@@ -19,7 +19,7 @@ variable "project_name" {
 variable "owner" {
   type        = string
   description = "Resource owner"
-  default     = "DevOps"
+  default     = "DevOps Team"
 }
 
 # Network variables

@@ -172,9 +172,20 @@ Le provider AWS appelle cette API à chaque lecture d'une ressource
 - **Le backend S3 n'est pas affecté** : il n'utilise que `GetObject`,
   `PutObject` et `ListObjects`. Le backend distant fonctionne normalement.
 - Les `plan` et `apply` du projet utilisent `-refresh=false`, ce qui évite la
-  lecture bloquée. Le code a par ailleurs été corrigé pour que le plan soit
-  stable : le tag `CreatedAt` utilisait `timestamp()`, qui changeait à chaque
-  exécution et forçait une mise à jour inutile de chaque bucket.
+  lecture bloquée.
+- Le plan doit en outre ne **jamais** planifier de modification sur un bloc
+  `aws_s3_bucket`, car le provider relit la ressource après l'avoir modifiée.
+  Deux causes ont dû être éliminées : le tag `CreatedAt` utilisait
+  `timestamp()`, qui changeait à chaque exécution ; et `terraform.tfvars`
+  n'était pas versionné, de sorte que le pipeline retombait sur les valeurs par
+  défaut des variables et divergeait du poste de développement sur le tag
+  `Owner`. Les deux faisaient apparaître une modification sur toutes les
+  ressources.
+- Les deux buckets déclarent enfin `lifecycle { ignore_changes = [tags,
+  tags_all] }`. Sans cela, la moindre dérive de tag bloquerait l'`apply` de
+  façon définitive : la modification est appliquée côté AWS, mais Terraform ne
+  peut pas la relire, donc la replanifie indéfiniment. Les tags restent
+  corrects et vérifiables par `aws s3api get-bucket-tagging`.
 - Les buckets du backend ne peuvent pas être gérés par Terraform du tout
   (`create`, `import` et `refresh` échouent sur cette lecture). Ils sont créés
   par `terraform/scripts/bootstrap.sh`. La configuration Terraform équivalente

@@ -30,12 +30,27 @@ blocage de l'accès public et règles de cycle de vie.
 ## Limite connue sur AWS Academy
 
 Une SCP d'organisation refuse `s3:GetBucketObjectLockConfiguration`, que le
-provider AWS appelle à chaque lecture d'une ressource `aws_s3_bucket`. Tant que
-l'état d'un bucket est complet et qu'aucune modification n'est planifiée sur la
-ressource elle-même, les `plan` et `apply` passent. En revanche un `refresh`,
-un `import` ou toute modification du bloc `aws_s3_bucket` échouent. D'où
-l'emploi de `-refresh=false` dans le pipeline, détaillé dans
-[docs/securite.md](../../../docs/securite.md).
+provider AWS appelle à chaque lecture d'une ressource `aws_s3_bucket` — y
+compris juste après une mise à jour. Toute modification du bloc
+`aws_s3_bucket` échoue donc, de même qu'un `refresh` ou un `import`.
+
+Le piège est subtil : la modification **est bien appliquée** côté AWS, mais
+Terraform ne peut pas en prendre acte, replanifie la même modification à
+l'exécution suivante, et échoue de nouveau. Un simple changement de tag suffit
+à bloquer définitivement l'`apply`.
+
+Les deux buckets déclarent donc :
+
+```hcl
+lifecycle {
+  ignore_changes = [tags, tags_all]
+}
+```
+
+Les tags restent corrects côté AWS, posés à la création, et vérifiables par
+`aws s3api get-bucket-tagging --bucket <nom>`. **À retirer sur un compte AWS
+sans cette SCP.** Le pipeline emploie par ailleurs `-refresh=false`, détaillé
+dans [docs/securite.md](../../../docs/securite.md).
 
 ## Entrées
 
