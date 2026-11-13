@@ -247,10 +247,11 @@ cp terraform.tfvars.example terraform.tfvars
 
 ## 7. Pipeline CI/CD
 
-Défini dans [`.github/workflows/terraform.yml`](.github/workflows/terraform.yml),
-déclenché à chaque push et à chaque Pull Request sur `main` ou `master`.
+Défini dans [`.github/workflows/terraform.yml`](.github/workflows/terraform.yml).
 
-### Job `terraform-ci` — à chaque exécution
+### Job `terraform-ci` — à chaque push et à chaque Pull Request
+
+Exécuté **en matrice sur les trois environnements** `dev`, `test` et `prod` :
 
 1. Récupération du dépôt
 2. Installation de Terraform
@@ -258,16 +259,55 @@ déclenché à chaque push et à chaque Pull Request sur `main` ou `master`.
 4. `terraform fmt -check -recursive`
 5. `terraform init`
 6. `terraform validate`
-7. `terraform plan -out=tfplan`
-8. `terraform show -no-color tfplan > plan.txt`, publié en artefact
+7. `terraform plan -refresh=false -out=tfplan`
+8. `terraform show -no-color tfplan > plan.txt`, publié en artefact (30 jours)
 
-### Job `terraform-apply` — sous conditions
+Ce job ne modifie jamais l'infrastructure. Une Pull Request produit donc trois
+plans consultables, sans rien appliquer.
 
-Ne s'exécute **que** sur un push vers `main`, jamais sur une Pull Request, et
-dépend de la réussite du job précédent. Il est rattaché à l'environnement
-GitHub `production`, qui peut exiger une approbation manuelle avant de démarrer.
+### Job `apply-dev` — automatique
 
-Une Pull Request produit donc un plan lisible, sans jamais rien modifier.
+Ne s'exécute que sur un **push vers `main`**, jamais sur une Pull Request, et
+dépend de la réussite du job précédent.
+
+### Job `apply-manuel` — `test` et `prod`
+
+Ne s'exécute **que sur déclenchement manuel** (*Actions → Run workflow*), avec
+l'environnement choisi dans la liste, et uniquement depuis `main`. Aucun push
+ne peut déclencher un déploiement `test` ou `prod` : c'est garanti par le
+workflow lui-même, indépendamment de toute configuration.
+
+### Configuration requise dans GitHub
+
+Deux réglages sont à faire dans l'interface du dépôt. **Tant qu'ils ne sont pas
+faits, le pipeline échoue, et l'approbation par un relecteur n'est pas exigée.**
+
+#### a. Les secrets — *Settings → Secrets and variables → Actions*
+
+| Secret | Contenu |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Clé d'accès |
+| `AWS_SECRET_ACCESS_KEY` | Clé secrète |
+| `AWS_SESSION_TOKEN` | Jeton de session |
+| `TF_VAR_DB_PASSWORD` | Mot de passe RDS |
+
+> Sur AWS Academy, ces identifiants **expirent à chaque session**. Il faut les
+> recopier depuis le bouton *AWS Details* du Learner Lab à chaque reprise, sans
+> quoi l'étape d'authentification du pipeline échoue.
+
+#### b. Les environnements — *Settings → Environments*
+
+Créer `dev`, `test` et `prod`. Sur `test` et `prod`, cocher
+**Required reviewers** et s'y désigner.
+
+Sans cette étape, GitHub crée l'environnement à la volée au premier usage,
+**sans aucune protection** : le déploiement reste manuel, mais personne n'a à
+l'approuver. C'est cette case qui matérialise la validation manuelle exigée par
+le cahier des charges (point 19.1.9).
+
+Tant que les environnements n'existent pas, l'extension GitHub Actions de VS
+Code signale `Value 'dev' is not valid` sur la ligne `environment:` — c'est
+précisément ce réglage manquant qu'elle signale.
 
 ---
 

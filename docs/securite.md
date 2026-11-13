@@ -106,12 +106,22 @@ Le backend S3 satisfait les exigences de la section 16.1 du cahier des charges :
 
 ## 8. Pipeline CI/CD
 
-- `apply` n'est jamais déclenché par une Pull Request : seulement par un push
-  sur la branche `main`.
-- Le job `apply` est rattaché à l'environnement GitHub `production`, qui peut
-  exiger une approbation manuelle (exigence 19.1, point 9).
+- `apply` n'est jamais déclenché par une Pull Request.
+- `dev` ne s'applique que sur un push vers `main`.
+- `test` et `prod` ne s'appliquent **que sur déclenchement manuel**
+  (`workflow_dispatch`), depuis `main`. Aucun push ne peut les déployer : la
+  garantie vient du workflow lui-même, pas d'un réglage.
 - Les identifiants proviennent du coffre GitHub, jamais du dépôt.
 - GitHub masque automatiquement les valeurs de secrets dans les journaux.
+
+**Réserve à lever.** L'approbation par un relecteur avant `apply` (exigence
+19.1, point 9) repose sur les protections de l'environnement GitHub. Or le
+dépôt n'en déclare aujourd'hui **aucun** : GitHub crée l'environnement à la
+volée au premier usage, sans protection. Le déploiement de `test` et `prod`
+reste manuel, mais personne n'a à l'approuver. Pour que l'exigence soit
+réellement satisfaite, il faut créer les environnements `dev`, `test` et `prod`
+dans *Settings → Environments* et cocher **Required reviewers** sur les deux
+derniers. La procédure figure au point 7 du [README](../README.md).
 
 ## 9. Points ouverts, assumés
 
