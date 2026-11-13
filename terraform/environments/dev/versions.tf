@@ -8,8 +8,15 @@ terraform {
     }
   }
 
-  backend "local" {
-    path = "../../terraform.tfstate"
+  # Backend distant : etat stocke sur S3, chiffre, versionne, avec
+  # verrouillage natif S3 (use_lockfile). Chaque environnement a sa propre
+  # cle, ce qui isole les etats dev / test / prod.
+  backend "s3" {
+    bucket       = "heartcare-terraform-state-342766168998"
+    key          = "dev/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
 
