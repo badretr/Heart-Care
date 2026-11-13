@@ -20,6 +20,9 @@ python3 -m venv /opt/venv
 cat >> /opt/heartcare/heartcare/settings.py << 'EOF'
 
 # Production settings
+# DEBUG doit rester False : en True, Django renvoie les traces d'exception et
+# la liste des routes a tout visiteur en cas d'erreur.
+DEBUG = False
 ALLOWED_HOSTS = ['*']
 STATIC_ROOT = '/opt/heartcare/staticfiles'
 
@@ -33,7 +36,13 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# CompressedStaticFilesStorage et non CompressedManifestStaticFilesStorage :
+# un template de l'application reference heartcare/js/js/jquery.prettyPhoto.js,
+# qui n'existe pas. Le stockage a manifeste transforme cette reference manquante
+# en ValueError, donc en erreur 500 sur toutes les pages des que DEBUG = False.
+# La version sans manifeste compresse les fichiers statiques sans exiger que
+# chacun soit present.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 EOF
 
 # Collect static files
@@ -46,6 +55,8 @@ cat > /etc/nginx/sites-available/default << 'ENDNGINX'
 server {
     listen 8000 default_server;
     server_name _;
+
+    add_header X-Served-By "__HOSTNAME__" always;
 
     location /static/ {
         alias /opt/heartcare/staticfiles/;
@@ -61,6 +72,14 @@ server {
         add_header Content-Type text/plain;
     }
 
+    # Identifie l'instance qui a servi la requete : permet d'observer la
+    # repartition de charge de l'ALB en actualisant plusieurs fois.
+    location /whoami {
+        access_log off;
+        default_type text/html;
+        return 200 "<h1>Heart Care</h1><p>Instance : __HOSTNAME__</p><p>ID EC2 : __INSTANCEID__</p>";
+    }
+
     location / {
         proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host $host;
@@ -69,6 +88,14 @@ server {
     }
 }
 ENDNGINX
+
+# Injecte le nom d'hote et l'identifiant EC2 dans la configuration nginx.
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 300" || true)
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/instance-id || echo inconnu)
+sed -i "s/__HOSTNAME__/$(hostname)/g; s/__INSTANCEID__/$${INSTANCE_ID}/g" \
+  /etc/nginx/sites-available/default
 
 # Start gunicorn as a service
 cat > /etc/systemd/system/heartcare.service << 'ENDSVC'
