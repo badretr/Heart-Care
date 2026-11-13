@@ -64,3 +64,15 @@ variable "health_check_unhealthy_threshold" {
   description = "Unhealthy threshold"
   default     = 2
 }
+
+variable "certificate_arn" {
+  type        = string
+  description = "ARN du certificat ACM servant le listener HTTPS. Vide : aucun listener HTTPS n'est cree et l'application est servie en HTTP."
+  default     = ""
+}
+
+variable "ssl_policy" {
+  type        = string
+  description = "Politique TLS du listener HTTPS"
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}

@@ -69,16 +69,49 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ALB Listener Rule (optional, can add HTTPS later)
-# resource "aws_lb_listener" "https" {
-#   load_balancer_arn = aws_lb.main.arn
-#   port              = 443
-#   protocol          = "HTTPS"
-#   ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
-#   certificate_arn   = var.certificate_arn  # Provide this if using HTTPS
+# Listener HTTPS.
 #
-#   default_action {
-#     type             = "forward"
-#     target_group_arn = aws_lb_target_group.app.arn
-#   }
-# }
+# Cree des que var.certificate_arn est renseigne. Il reste vide par defaut
+# parce qu'un certificat suppose un nom de domaine : le nom DNS d'un ALB
+# appartient a amazonaws.com et ne peut pas etre valide par ACM. Deux voies
+# existent, decrites dans docs/securite.md :
+#   - un domaine a soi, valide par ACM (production) ;
+#   - un certificat auto-signe importe dans ACM (demonstration).
+resource "aws_lb_listener" "https" {
+  count = var.certificate_arn == "" ? 0 : 1
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = var.ssl_policy
+  certificate_arn   = var.certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+# Redirection de HTTP vers HTTPS, active elle aussi par le certificat.
+# Sans certificat, le listener HTTP ci-dessus sert directement l'application.
+resource "aws_lb_listener_rule" "redirect_https" {
+  count = var.certificate_arn == "" ? 0 : 1
+
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 1
+
+  action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = ["/*"]
+    }
+  }
+}

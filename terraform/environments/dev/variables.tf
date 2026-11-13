@@ -163,3 +163,9 @@ variable "enable_iam_tags" {
   description = "Taguer les ressources IAM. Garder false sur AWS Academy Learner Lab, qui refuse iam:TagPolicy et iam:TagInstanceProfile ; passer a true sur un compte AWS standard."
   default     = false
 }
+
+variable "certificate_arn" {
+  type        = string
+  description = "ARN du certificat ACM servant le listener HTTPS de l'ALB. Vide : l'application est servie en HTTP uniquement."
+  default     = ""
+}

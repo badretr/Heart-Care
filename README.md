@@ -223,6 +223,7 @@ Heart-Care-main/
 | `db_instance_class` | `db.t3.micro` | Classe RDS |
 | `db_password` | — | **Via `TF_VAR_db_password`**, jamais versionné |
 | `multi_az` | `false` | Multi-AZ RDS (`true` en prod) |
+| `certificate_arn` | `""` | Certificat ACM ; vide = HTTP seul, renseigné = HTTPS + redirection |
 | `create_iam_role` | `false` | `true` sur un compte AWS standard |
 | `enable_iam_tags` | `false` | `true` sur un compte AWS standard |
 
@@ -373,7 +374,9 @@ Le backend S3 distant, lui, **fonctionne normalement** : il n'utilise que
 
 ### Choix assumés, à revoir en production
 
-- L'ALB n'écoute qu'en **HTTP** ; HTTPS demande un certificat ACM et un domaine.
+- L'ALB n'écoute qu'en **HTTP** tant que `certificate_arn` est vide. Le
+  listener HTTPS et la redirection depuis HTTP sont codés et s'activent dès
+  qu'un certificat ACM est fourni (voir [docs/securite.md](docs/securite.md)).
 - Le Security Group bastion ouvre le **port 22 à `0.0.0.0/0`** ; à restreindre.
 - RDS a `deletion_protection = false` et `skip_final_snapshot = true`, pour
   permettre la destruction complète demandée par le cahier des charges.

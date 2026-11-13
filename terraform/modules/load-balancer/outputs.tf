@@ -27,3 +27,8 @@ output "alb_url" {
   value       = "http://${aws_lb.main.dns_name}"
   description = "URL of the ALB"
 }
+
+output "https_enabled" {
+  value       = var.certificate_arn != ""
+  description = "Indique si le listener HTTPS est actif"
+}

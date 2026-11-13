@@ -133,10 +133,30 @@ l'administrateur. Le besoin est d'ailleurs discutable : la politique IAM
 accorde déjà Session Manager, qui permet d'ouvrir une session sur une instance
 sans aucun port ouvert. Le bastion pourrait être supprimé.
 
-**L'ALB n'écoute qu'en HTTP.** Le trafic entre le navigateur et l'ALB n'est pas
-chiffré. Activer HTTPS demande un certificat ACM et un nom de domaine, hors
-périmètre du lab. Le Security Group de l'ALB autorise déjà le port 443 pour
-que l'ajout d'un listener soit la seule modification nécessaire.
+**L'ALB n'écoute qu'en HTTP tant qu'aucun certificat n'est fourni.** Le module
+`load-balancer` crée un listener HTTPS sur le port 443, ainsi qu'une
+redirection de HTTP vers HTTPS, **dès que `certificate_arn` est renseigné** :
+
+```hcl
+module "load_balancer" {
+  certificate_arn = "arn:aws:acm:us-east-1:<compte>:certificate/<id>"
+}
+```
+
+La variable reste vide par défaut, pour une raison de fond : un certificat
+suppose un nom de domaine, et le nom DNS d'un ALB appartient à `amazonaws.com`
+— ACM ne peut pas le valider. Deux voies existent :
+
+| Voie | Usage | Démarche |
+|---|---|---|
+| Domaine propre validé par ACM | production | `aws acm request-certificate --domain-name app.exemple.fr --validation-method DNS`, puis enregistrement CNAME |
+| Certificat auto-signé importé dans ACM | démonstration | `openssl req -x509` puis `aws acm import-certificate` |
+
+La seconde chiffre réellement le trafic, mais le navigateur avertit que
+l'émetteur est inconnu : elle démontre le mécanisme sans fournir
+d'authentification du serveur. Tant qu'aucun certificat n'est fourni, le
+trafic entre le navigateur et l'ALB **n'est pas chiffré** — c'est la limite à
+retenir. Le Security Group autorise déjà le port 443.
 
 **`deletion_protection = false` et `skip_final_snapshot = true` sur RDS.** Ces
 réglages sont volontaires : l'environnement doit pouvoir être détruit

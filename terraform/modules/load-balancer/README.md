@@ -10,6 +10,8 @@ lequel l'Auto Scaling Group enregistre les instances.
 | `aws_lb.main` | ALB public, réparti sur les deux sous-réseaux publics |
 | `aws_lb_target_group.app` | Cible HTTP port 8000, health check configurable |
 | `aws_lb_listener.http` | Écoute le port 80 et transmet au Target Group |
+| `aws_lb_listener.https` | Écoute le port 443 — créé si `certificate_arn` est fourni |
+| `aws_lb_listener_rule.redirect_https` | Redirige HTTP vers HTTPS — même condition |
 
 ## Choix de conception
 
@@ -19,9 +21,14 @@ lequel l'Auto Scaling Group enregistre les instances.
   aussi `/health/`, servi directement par nginx sans passer par Django : c'est
   la valeur à utiliser si l'on veut que le health check reste vert pendant un
   redémarrage applicatif.
-- Seul le port 80 est écouté. Ajouter HTTPS demande un certificat ACM et un
-  nom de domaine, hors périmètre du lab ; le Security Group de l'ALB autorise
-  déjà 443 pour que l'ajout du listener soit la seule modification nécessaire.
+- **HTTPS est piloté par `certificate_arn`.** Vide, le module n'écoute qu'en
+  HTTP. Renseigné, il crée le listener 443 *et* redirige le port 80 vers lui,
+  en HTTP 301. Le `count` sur les deux ressources évite d'avoir à maintenir
+  deux variantes du module.
+- La variable reste vide par défaut parce qu'un certificat suppose un nom de
+  domaine : le nom DNS d'un ALB appartient à `amazonaws.com`, qu'ACM ne peut
+  pas valider. Les deux voies possibles sont décrites dans
+  [docs/securite.md](../../../docs/securite.md).
 
 ## Entrées
 
@@ -37,13 +44,15 @@ lequel l'Auto Scaling Group enregistre les instances.
 | `health_check_timeout` | `number` | `5` | Délai d'attente, en secondes |
 | `health_check_healthy_threshold` | `number` | `2` | Succès avant passage à `healthy` |
 | `health_check_unhealthy_threshold` | `number` | `2` | Échecs avant passage à `unhealthy` |
+| `certificate_arn` | `string` | `""` | Certificat ACM ; vide = pas de listener HTTPS |
+| `ssl_policy` | `string` | `ELBSecurityPolicy-TLS13-1-2-2021-06` | Politique TLS du listener HTTPS |
 | `owner` | `string` | `DevOps` | Propriétaire (tag) |
 | `common_tags` | `map(string)` | `{}` | Tags communs |
 
 ## Sorties
 
 `alb_arn`, `alb_dns_name`, `alb_zone_id`, `target_group_arn`,
-`target_group_name`, `alb_url`
+`target_group_name`, `alb_url`, `https_enabled`
 
 ## Exemple
 
