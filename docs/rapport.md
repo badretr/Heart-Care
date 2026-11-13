@@ -57,7 +57,40 @@ Chaque étage est dupliqué sur deux zones de disponibilité, `us-east-1a` et
 | Secrets | SSM Parameter Store, `SecureString` | Aucun secret dans le dépôt |
 | État Terraform | S3 chiffré, versionné, verrou natif | Travail collaboratif possible |
 
-### 2.3 Deux décisions structurantes
+### 2.3 Le chemin d'une requête
+
+Suivre une requête de bout en bout montre où chaque garde-fou intervient.
+
+| Étape | Composant | Contrôle appliqué |
+|---|---|---|
+| 1 | Navigateur | requête HTTP vers le nom DNS de l'ALB |
+| 2 | ALB | `sg-alb` accepte 80 et 443 depuis Internet |
+| 3 | ALB | choisit une cible **saine** du Target Group |
+| 4 | nginx :8000 | `sg-app` n'accepte 8000 que depuis `sg-alb` |
+| 5 | nginx | sert `/static/` depuis le disque, répond `/health/` et `/whoami` |
+| 6 | gunicorn :8001 | Django traite la requête applicative |
+| 7 | RDS :5432 | `sg-rds` n'accepte 5432 que depuis `sg-app` |
+
+Le détail du port compte : nginx et gunicorn écoutaient tous deux sur 8000
+dans une première version, et gunicorn ne démarrait pas. L'ALB renvoyait un
+`502 Bad Gateway` sans que rien n'indique la cause côté infrastructure — le
+Target Group était simplement vide de cibles saines.
+
+### 2.4 Ce qui se passe quand une instance tombe
+
+| Instant | Événement |
+|---|---|
+| T+0 | L'instance s'arrête |
+| T+30 s | Premier health check en échec |
+| T+60 s | Deuxième échec : l'ALB retire la cible du Target Group |
+| T+60 s | L'Auto Scaling Group constate l'écart avec la capacité souhaitée |
+| T+2 min | Une nouvelle instance démarre, le `user_data` s'exécute |
+| T+5 min | La nouvelle instance passe `healthy` et reçoit du trafic |
+
+Pendant toute cette fenêtre, l'instance restante sert l'intégralité du trafic.
+C'est ce que le test de panne a mesuré : trente requêtes, trente réponses 200.
+
+### 2.5 Deux décisions structurantes
 
 **Une NAT Gateway par zone, pas une seule.** Une NAT unique coûterait 33 $ de
 moins par mois, mais ferait de sa zone un point de défaillance unique pour tout
@@ -109,7 +142,52 @@ Les modules sont communs, les différences passent exclusivement par variables.
 Chaque environnement possède son propre état, sous une clé distincte du bucket :
 une erreur sur `dev` ne peut pas corrompre `prod`.
 
-### 3.3 Qualité du code
+### 3.3 Comment les trois environnements diffèrent
+
+Les modules sont strictement communs. Toute la différence passe par variables,
+ce qui garantit qu'un correctif appliqué à un module profite aux trois.
+
+| Paramètre | `dev` | `test` | `prod` |
+|---|---|---|---|
+| `instance_type` | `t3.micro` | `t3.small` | `t3.medium` |
+| `desired_capacity` | 2 | 3 | 4 |
+| `max_size` | 3 | 4 | 8 |
+| `db_instance_class` | `db.t3.micro` | `db.t3.small` | `db.t3.medium` |
+| `db_allocated_storage` | 20 Go | 30 Go | 50 Go |
+| `backup_retention_days` | 7 | 14 | 30 |
+| `multi_az` | `false` | `false` | **`true`** |
+| Déploiement | automatique sur push | manuel + approbation | manuel + approbation |
+
+`multi_az` est la différence la plus coûteuse : elle double le prix de
+l'instance RDS, une instance de secours étant maintenue dans une seconde zone.
+Justifiée en production, inutile en développement.
+
+Chaque environnement possède son propre fichier d'état, sous une clé distincte
+du même bucket :
+
+```
+s3://heartcare-terraform-state-<compte>/
+├── dev/terraform.tfstate
+├── test/terraform.tfstate
+└── prod/terraform.tfstate
+```
+
+Une erreur sur `dev` ne peut pas corrompre `prod` : ce sont deux objets
+distincts, chacun verrouillé séparément pendant une opération.
+
+### 3.4 Un choix revu : versionner les `terraform.tfvars`
+
+Les fichiers de variables d'environnement étaient initialement exclus du dépôt,
+par prudence. C'était une erreur de conception, révélée par le pipeline : sans
+eux, la CI retombait sur les valeurs par défaut des variables et travaillait
+donc sur des entrées différentes de celles du poste de développement.
+
+Ils sont désormais versionnés, **sans aucun secret** — le mot de passe de la
+base reste fourni par `TF_VAR_db_password`. Le cahier des charges le formule
+d'ailleurs ainsi : « aucune valeur sensible en clair dans `terraform.tfvars` »,
+ce qui suppose bien que le fichier existe et soit partagé.
+
+### 3.5 Qualité du code
 
 - `required_version` et `required_providers` déclarés dans chaque module.
 - Variables typées, documentées, et validées là où la valeur est critique
@@ -162,7 +240,37 @@ La politique accorde également l'accès Session Manager, ce qui permet d'ouvrir
 une session sur une instance **sans ouvrir le moindre port SSH**. Cette
 capacité s'est révélée décisive au diagnostic (section 7.3).
 
-### 4.5 Points ouverts, assumés
+### 4.5 Chiffrement, partout où la donnée se pose
+
+| Donnée | Au repos | En transit |
+|---|---|---|
+| État Terraform | AES256 sur S3, `encrypt = true` | HTTPS vers l'API S3 |
+| Base RDS | `storage_encrypted = true` | dans le VPC uniquement |
+| Buckets applicatifs | AES256 | politique refusant `aws:SecureTransport = false` |
+| Paramètres SSM sensibles | `SecureString`, KMS | HTTPS vers l'API SSM |
+| Navigateur → ALB | — | **non chiffré** tant qu'aucun certificat n'est fourni |
+
+La dernière ligne est la seule faiblesse, et elle est explicitée plutôt que
+noyée. Le listener HTTPS est codé dans le module `load-balancer` et s'active
+dès que `certificate_arn` est renseigné ; il reste vide parce qu'un certificat
+suppose un nom de domaine, et que le nom DNS d'un ALB appartient à
+`amazonaws.com`, qu'ACM ne peut pas valider.
+
+### 4.6 Ce qui protège réellement la base de données
+
+Trois barrières indépendantes, et c'est volontaire : chacune suffirait, mais
+aucune ne dépend des deux autres.
+
+| Barrière | Nature | Ce qu'elle arrête |
+|---|---|---|
+| `publicly_accessible = false` | configuration RDS | l'attribution d'une adresse publique |
+| Aucune route par défaut sur les sous-réseaux DB | routage | tout chemin réseau depuis l'extérieur |
+| `sg-rds` n'accepte que `sg-app` | pare-feu | toute source autre que les instances applicatives |
+
+Le test l'a vérifié : l'endpoint RDS résout vers `10.20.21.169`, une adresse
+privée, et la connexion depuis Internet est refusée.
+
+### 4.7 Points ouverts, assumés
 
 Trois éléments ne sont pas au niveau d'une production réelle, et sont signalés
 plutôt que passés sous silence : l'ALB n'écoute qu'en HTTP, le Security Group
@@ -181,6 +289,21 @@ Le workflow GitHub Actions se déclenche à chaque push et à chaque Pull Reques
 **Job `terraform-ci`**, à chaque exécution : récupération du dépôt, installation
 de Terraform, authentification AWS depuis les secrets, puis `fmt -check`,
 `init`, `validate`, `plan`, et publication du plan lisible en artefact.
+
+Les neuf étapes exigées par la section 19.1 du cahier des charges y figurent
+toutes :
+
+| # | Étape | Mise en œuvre |
+|---|---|---|
+| 1 | Récupérer le dépôt | `actions/checkout` |
+| 2 | Installer Terraform | `hashicorp/setup-terraform`, version alignée sur le poste local |
+| 3 | Authentification sécurisée | `aws-actions/configure-aws-credentials` depuis les secrets |
+| 4 | `terraform fmt -check` | sur l'ensemble du dépôt, récursif |
+| 5 | `terraform init` | backend S3 distant |
+| 6 | `terraform validate` | — |
+| 7 | `terraform plan` | avec `-out=tfplan` |
+| 8 | Conserver le plan | `terraform show` puis artefact conservé 30 jours |
+| 9 | Validation manuelle test/prod | `workflow_dispatch` + relecteur obligatoire |
 
 Le job de verification tourne **en matrice sur les trois environnements**, ce
 qui garantit que `test` et `prod` restent valides même s'ils ne sont pas
@@ -335,6 +458,70 @@ désactiver le réglage.
 
 ---
 
+## 7bis. Méthode de diagnostic
+
+Plusieurs pannes de ce projet se ressemblaient : un message d'erreur désignait
+une cause, et la cause réelle était ailleurs. La méthode qui a fini par
+marcher mérite d'être explicitée, parce qu'elle est transposable.
+
+### Tester chaque permission une par une
+
+Face à `AccessDenied`, le réflexe est de conclure que « le service est
+bloqué ». C'est presque toujours faux. Un SCP refuse des **actions**, pas des
+services. Sur IAM, la liste réelle s'est révélée très différente de la
+supposition :
+
+| Supposé | Réel |
+|---|---|
+| « IAM est bloqué » | 3 actions sur 6 autorisées |
+| « S3 est bloqué » | seule la lecture object-lock l'est ; le backend fonctionne |
+
+Chaque test coûtait une commande et trente secondes. La supposition a coûté
+plusieurs jours de travail sur un backend local inutile.
+
+### Distinguer l'échec de l'application de l'échec de la lecture
+
+Le piège le plus coûteux du projet : sous le SCP S3, une modification de
+bucket **est réellement appliquée** côté AWS, mais le provider ne peut pas la
+relire pour l'enregistrer dans l'état. Terraform replanifie donc la même
+modification à l'exécution suivante, et échoue de nouveau — indéfiniment.
+
+Le symptôme ressemble à « la modification ne passe pas ». La réalité était
+« la modification est passée, mais on ne peut pas le constater ». Vérifier
+directement l'état réel de la ressource a tranché :
+
+```bash
+aws s3api get-bucket-tagging --bucket heartcare-dev-342766168998
+# Owner = DevOps Team  -> le tag était bien posé
+```
+
+### Comparer les entrées, pas seulement les sorties
+
+Un `plan` local annonçait `No changes` tandis que le même `plan` échouait dans
+le pipeline. L'infrastructure était identique ; les **entrées** ne l'étaient
+pas. `terraform.tfvars` n'était pas versionné, le pipeline retombait donc sur
+les valeurs par défaut des variables, et une seule différait : `owner`.
+
+Ce tag figure sur toutes les ressources. Une variable de quatre mots suffisait
+à faire replanifier l'infrastructure entière, donc à toucher les buckets, donc
+à heurter le SCP.
+
+### Accéder aux instances sans ouvrir de port
+
+Les instances n'ont pas d'adresse publique et le bastion n'a jamais été
+déployé. Session Manager, accordé par la politique IAM, a permis d'ouvrir une
+session et d'exécuter des commandes à distance sans qu'aucun port SSH ne soit
+ouvert :
+
+```bash
+aws ssm send-command --instance-ids <id> \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["tail -50 /var/log/user-data.log"]'
+```
+
+C'est ainsi que la trace `Missing staticfiles manifest entry` a été obtenue —
+l'erreur que `DEBUG = True` masquait.
+
 ## 8. Résultats des tests
 
 Les neuf tests obligatoires et leurs résultats sont consignés en détail dans
@@ -370,10 +557,79 @@ Le crédit de 50 $ couvre environ 285 heures, soit une douzaine de jours. Les
 instances EC2, que l'on imagine spontanément être le centre de coût, ne pèsent
 que 12 % : ce sont les composants réseau managés qui dominent.
 
-Le seul levier qui compte vraiment est de détruire l'environnement entre deux
-sessions de travail. Détail dans [couts.md](couts.md).
+### 9.1 Le détail
+
+| Ressource | Quantité | Tarif | Coût horaire | Coût mensuel |
+|---|---:|---|---:|---:|
+| NAT Gateway | 2 | 0,045 $/h | 0,0900 $ | 65,70 $ |
+| Application Load Balancer | 1 | 0,0225 $/h | 0,0225 $ | 16,43 $ |
+| Instances EC2 `t3.micro` | 2 | 0,0104 $/h | 0,0208 $ | 15,18 $ |
+| Adresses IPv4 publiques | 4 | 0,005 $/h | 0,0200 $ | 14,60 $ |
+| RDS `db.t3.micro` | 1 | 0,018 $/h | 0,0180 $ | 13,14 $ |
+| Stockage RDS `gp3` | 20 Go | 0,115 $/Go/mois | 0,0032 $ | 2,30 $ |
+| **Total** | | | **≈ 0,175 $/h** | **≈ 127 $/mois** |
+
+### 9.2 Ce que couvre le crédit
+
+| Durée | Coût |
+|---|---:|
+| 1 heure | 0,18 $ |
+| 1 journée de travail (8 h) | 1,40 $ |
+| 1 jour complet | 4,19 $ |
+| 1 semaine | 29,33 $ |
+
+### 9.3 Les arbitrages envisagés
+
+| Levier | Économie | Contrepartie |
+|---|---:|---|
+| Détruire entre les sessions | jusqu'à 100 % | ~10 min de remise en route |
+| Une seule NAT Gateway | 32,85 $/mois | sa zone devient un point de défaillance unique |
+| Endpoints VPC pour S3 et SSM | ~30 $/mois | ne couvre ni APT ni GitHub |
+| `desired_capacity = 1` en dev | 7,59 $/mois | plus de haute disponibilité, donc plus de test de panne |
+
+Seul le premier a été retenu. Les trois autres dégradent précisément ce que le
+projet doit démontrer, pour une économie qui ne change rien à l'échelle d'un
+crédit de 50 $.
+
+Le seul levier qui compte vraiment est donc de détruire l'environnement entre
+deux sessions de travail. Détail dans [couts.md](couts.md).
 
 ---
+
+## 9bis. Conformité au cahier des charges
+
+Chaque exigence a été vérifiée par une commande, non par relecture. Synthèse.
+
+| Section | Exigence | État | Preuve |
+|---|---|---|---|
+| 5, 7 | VPC sur 2 AZ, 6 sous-réseaux au plan donné | conforme | plan d'adressage identique au tableau |
+| 5 | IGW, sortie contrôlée, ALB, LT + ASG, RDS privé, S3 | conforme | ressources vérifiées dans AWS |
+| 5 | Rôles IAM de moindre privilège | partiel | politique créée, attachement refusé par SCP |
+| 5 | Backend distant | conforme | S3 chiffré, versionné, verrouillé |
+| 5 | Pipeline CI/CD | conforme | GitHub Actions, run vert |
+| 8 | ALB accepte HTTP/HTTPS | partiel | listener HTTPS codé, sans certificat |
+| 8 | App n'accepte que depuis le SG de l'ALB | conforme | règle lue dans AWS |
+| 8 | Base n'accepte que depuis le SG applicatif | conforme | règle lue dans AWS |
+| 8 | Aucun secret dans Git | conforme | `git grep` sans résultat |
+| 8 | Buckets sans accès public | conforme | 4 verrous actifs sur 4 buckets |
+| 8 | Chiffrement des données sensibles et de l'état | conforme | AES256 partout |
+| 9 | URL fonctionnelle, 2 instances / 2 zones | conforme | HTTP 200 |
+| 9 | Continuité après arrêt d'une instance | conforme | 30/30 réponses 200 |
+| 9 | RDS injoignable depuis Internet | conforme | adresse privée, connexion refusée |
+| 10, 11 | Structure du dépôt, 5 fichiers par module | conforme | 7 modules complets |
+| 12 | Nommage, tags obligatoires, snake_case | conforme | tags lus sur le VPC |
+| 13 | `required_version`, variables typées, validations | conforme | 11 fichiers, 158 descriptions, 12 validations |
+| 16 | Les 6 exigences du backend | conforme | vérifiées une par une |
+| 17 | Trois environnements, état séparé | conforme | 3 clés S3 distinctes |
+| 19 | Les 9 étapes du pipeline | conforme | run vert, 0 avertissement |
+| 21 | Serveur Web, nom d'hôte, répartition, Healthy | conforme | `/whoami`, 2 instances |
+| 22 | Les 9 tests obligatoires | conforme | détaillés dans `tests.md` |
+| 23 | Ni `.terraform` ni `tfstate` versionnés | conforme | `git ls-files` sans résultat |
+| 24, 25 | Livrables et contenu du README | conforme | ce document et les autres |
+
+Deux lignes seulement sont marquées « partiel », et toutes deux pour la même
+raison : une contrainte extérieure au compte, documentée, avec le code en
+place pour lever la restriction dès qu'elle disparaît.
 
 ## 10. Bilan
 
