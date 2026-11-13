@@ -55,9 +55,13 @@ dans **[docs/architecture.md](docs/architecture.md)**.
 
 ### Logiciels
 
+> Terraform **1.10 au minimum** : le backend distant utilise `use_lockfile`,
+> le verrouillage natif S3, qui n'existe pas avant cette version. Le pipeline
+> installe la même version que le poste de développement (1.17.2).
+
 | Outil | Version | Vérification |
 |---|---|---|
-| Terraform | ≥ 1.6.0 | `terraform version` |
+| Terraform | ≥ 1.10.0 | `terraform version` |
 | AWS CLI | v2 | `aws --version` |
 | Git | ≥ 2.30 | `git --version` |
 

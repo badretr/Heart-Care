@@ -1,5 +1,7 @@
 terraform {
-  required_version = ">= 1.6.0"
+  # >= 1.10 : le verrouillage natif S3 du backend (use_lockfile)
+  # n'existe pas avant cette version.
+  required_version = ">= 1.10.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
