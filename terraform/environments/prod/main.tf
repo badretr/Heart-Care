@@ -50,6 +50,7 @@ module "iam" {
   logs_bucket_arn    = module.storage.s3_logs_bucket_arn
   create_iam_role    = var.create_iam_role
   enable_iam_tags    = var.enable_iam_tags
+  enable_s3_endpoint = true
   vpc_id             = module.network.vpc_id
   route_table_ids    = module.network.private_app_route_table_ids
   existing_role_name = var.existing_role_name

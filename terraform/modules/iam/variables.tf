@@ -48,9 +48,15 @@ variable "existing_role_name" {
   default     = "LabRole"
 }
 
+variable "enable_s3_endpoint" {
+  type        = bool
+  description = "Create the S3 gateway endpoint enforcing least privilege. Must be true when vpc_id and route_table_ids are provided."
+  default     = false
+}
+
 variable "vpc_id" {
   type        = string
-  description = "VPC where the S3 gateway endpoint is created. Empty: no endpoint."
+  description = "VPC where the S3 gateway endpoint is created."
   default     = ""
 }
 

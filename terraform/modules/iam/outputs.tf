@@ -34,6 +34,6 @@ output "policy_attached_to_role" {
 }
 
 output "s3_endpoint_id" {
-  value       = var.vpc_id == "" ? null : aws_vpc_endpoint.s3[0].id
+  value       = var.enable_s3_endpoint ? aws_vpc_endpoint.s3[0].id : null
   description = "ID of the S3 gateway endpoint enforcing least privilege on S3, null when disabled"
 }
