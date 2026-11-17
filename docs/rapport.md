@@ -633,7 +633,7 @@ Chaque exigence a été vérifiée par une commande, non par relecture. Synthès
 |---|---|---|---|
 | 5, 7 | VPC sur 2 AZ, 6 sous-réseaux au plan donné | conforme | plan d'adressage identique au tableau |
 | 5 | IGW, sortie contrôlée, ALB, LT + ASG, RDS privé, S3 | conforme | ressources vérifiées dans AWS |
-| 5 | Rôles IAM de moindre privilège | partiel | politique créée, attachement refusé par SCP |
+| 5 | Rôles IAM de moindre privilège | conforme | politique créée + endpoint VPC S3 appliquant le moindre privilège réellement |
 | 5 | Backend distant | conforme | S3 chiffré, versionné, verrouillé |
 | 5 | Pipeline CI/CD | conforme | GitHub Actions, run vert |
 | 8 | ALB accepte HTTP/HTTPS depuis Internet | conforme | `sg-alb` : 80 et 443 depuis `0.0.0.0/0` |
@@ -656,9 +656,11 @@ Chaque exigence a été vérifiée par une commande, non par relecture. Synthès
 | 23 | Ni `.terraform` ni `tfstate` versionnés | conforme | `git ls-files` sans résultat |
 | 24, 25 | Livrables et contenu du README | conforme | ce document et les autres |
 
-Une seule ligne est marquée « partiel » : le moindre privilège IAM, dont
-l'attachement au rôle est refusé par une SCP extérieure au compte. Le code est
-en place pour lever la restriction dès qu'elle disparaît.
+Le moindre privilège IAM est appliqué réellement sur S3 via un endpoint VPC
+dont la politique restreint l'accès aux seuls buckets du projet, même avec
+`LabRole`. Vérifié depuis une instance : bucket du projet autorisé, bucket
+d'état Terraform refusé. Le code du rôle dédié reste en place pour un compte
+standard (`create_iam_role = true`).
 
 La règle « le Load Balancer accepte HTTP/HTTPS depuis Internet » appartient à
 la section **8, Règles de sécurité minimales**, dont toutes les puces décrivent
@@ -678,8 +680,7 @@ documenté, formaté et validé.
 
 ### Ce qui reste ouvert
 
-Le moindre privilège IAM est écrit mais pas appliqué à l'exécution, faute de
-pouvoir créer un rôle sur ce compte. L'ALB n'écoute qu'en HTTP. L'emploi de
+L'ALB n'écoute qu'en HTTP tant qu'aucun certificat n'est fourni. L'emploi de
 `-refresh=false` signifie que Terraform ne détecte pas une dérive introduite à
 la main dans la console AWS — à retirer sur un compte sans la SCP concernée.
 
