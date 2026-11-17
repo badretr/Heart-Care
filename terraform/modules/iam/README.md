@@ -40,6 +40,8 @@ Les permissions ont été vérifiées une par une sur le compte :
 | `iam:AddRoleToInstanceProfile` | autorisée |
 | `iam:CreateRole` | **refusée** |
 | `iam:AttachRolePolicy` | **refusée** |
+| `iam:PutRolePolicy` (politique inline) | **refusée** |
+| `iam:PutRolePermissionsBoundary` | **refusée** |
 | `iam:TagPolicy`, `iam:TagInstanceProfile` | **refusées** |
 
 Deux conséquences, toutes deux pilotées par variable pour que le code reste
@@ -65,6 +67,29 @@ provider "aws" {
 }
 ```
 
+## Endpoint VPC S3 : moindre privilège appliqué par le réseau
+
+Quand `vpc_id` et `route_table_ids` sont fournis, le module crée un endpoint de
+passerelle S3 dont la politique n'autorise que les mêmes actions que la
+politique IAM, limitées aux buckets du projet et aux buckets SSM nécessaires à
+Session Manager. Comme les instances n'ont pas d'IP publique, leur seul chemin
+vers S3 passe par cet endpoint : le moindre privilège est **réellement appliqué**
+même si `LabRole` reste large.
+
+| Ressource | Condition |
+|---|---|
+| `aws_vpc_endpoint.s3` | `vpc_id != ""` |
+| `data.aws_iam_policy_document.s3_endpoint` | toujours |
+
+Vérifié depuis une instance (`ssm send-command` + `boto3`) :
+
+| Opération | Résultat |
+|---|---|
+| `ListBucket` sur le bucket du projet | autorisé |
+| `PutObject` sur le bucket du projet | autorisé |
+| `ListBucket` sur le bucket d'état Terraform | **refusé** par la politique de l'endpoint |
+| Session Manager | fonctionnel |
+
 ## Entrées
 
 | Variable | Type | Défaut | Description |
@@ -74,6 +99,8 @@ provider "aws" {
 | `create_iam_role` | `bool` | `false` | Créer le rôle ; `false` sur Learner Lab |
 | `existing_role_name` | `string` | `LabRole` | Rôle réutilisé si `create_iam_role = false` |
 | `enable_iam_tags` | `bool` | `false` | Taguer les ressources IAM ; `false` sur Learner Lab |
+| `vpc_id` | `string` | `""` | VPC pour l'endpoint S3 ; vide = pas d'endpoint |
+| `route_table_ids` | `list(string)` | `[]` | Tables de routage privées vers l'endpoint |
 | `environment`, `project_name` | `string` | — | Nommage |
 | `owner` | `string` | `DevOps` | Propriétaire (tag) |
 | `common_tags` | `map(string)` | `{}` | Tags communs |
@@ -82,7 +109,7 @@ provider "aws" {
 
 `app_policy_arn`, `app_policy_name`, `app_role_name`, `app_role_arn`,
 `app_instance_profile_name`, `app_instance_profile_arn`,
-`policy_attached_to_role`
+`policy_attached_to_role`, `s3_endpoint_id`
 
 ## Exemple
 
@@ -96,6 +123,8 @@ module "iam" {
 
   app_bucket_arn  = module.storage.s3_bucket_arn
   logs_bucket_arn = module.storage.s3_logs_bucket_arn
+  vpc_id          = module.network.vpc_id
+  route_table_ids = module.network.private_app_route_table_ids
 
   # Sur un compte AWS standard, passer les deux à true.
   create_iam_role = false

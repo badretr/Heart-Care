@@ -37,3 +37,8 @@ output "availability_zones" {
   value       = var.availability_zones
   description = "Availability zones used"
 }
+
+output "private_app_route_table_ids" {
+  value       = aws_route_table.private_app[*].id
+  description = "IDs of the private app route tables (where a gateway endpoint attaches its routes)"
+}

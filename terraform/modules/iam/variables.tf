@@ -47,3 +47,15 @@ variable "existing_role_name" {
   description = "Pre-provisioned IAM role to bind to the instance profile when create_iam_role is false"
   default     = "LabRole"
 }
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC where the S3 gateway endpoint is created. Empty: no endpoint."
+  default     = ""
+}
+
+variable "route_table_ids" {
+  type        = list(string)
+  description = "Private route tables that route S3 traffic through the gateway endpoint"
+  default     = []
+}

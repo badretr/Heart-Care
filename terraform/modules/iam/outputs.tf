@@ -32,3 +32,8 @@ output "policy_attached_to_role" {
   value       = var.create_iam_role
   description = "Whether the least-privilege policy is attached to the role. False on Learner Lab, where iam:AttachRolePolicy is denied: the policy is created but the lab role's own permissions apply at runtime."
 }
+
+output "s3_endpoint_id" {
+  value       = var.vpc_id == "" ? null : aws_vpc_endpoint.s3[0].id
+  description = "ID of the S3 gateway endpoint enforcing least privilege on S3, null when disabled"
+}

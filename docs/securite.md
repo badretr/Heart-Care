@@ -175,11 +175,39 @@ techniques. Elles sont hors de portée du compte et ne peuvent pas être levées
 
 ### `iam:CreateRole` et `iam:AttachRolePolicy` refusés
 
+Les quatre moyens de lier une politique à un rôle ont été testés un par un, et
+tous sont refusés : `CreateRole`, `AttachRolePolicy`, `PutRolePolicy` (politique
+inline) et `PutRolePermissionsBoundary` (seule façon de restreindre un rôle
+existant). Seules `CreatePolicy`, `CreateInstanceProfile` et
+`AddRoleToInstanceProfile` passent. Aucune voie ne permet donc de restreindre
+`LabRole`, qui porte entre autres les politiques SSM, EKS et ECR gérées par AWS
+et trois politiques propres au lab.
+
 La politique de moindre privilège est bien créée, mais ne peut pas être
 rattachée à un rôle. Les instances portent donc `LabRole`, dont les permissions
 sont larges. Le code du rôle et de son attachement est écrit et piloté par
 `create_iam_role` : sur un compte AWS standard, passer cette variable à `true`
 applique réellement le moindre privilège, sans autre modification.
+
+**Contournement déployé : endpoint VPC S3 avec politique de moindre privilège.**
+Un endpoint de passerelle S3 porte sa propre politique, évaluée en plus des
+permissions IAM. Les instances n'ont pas d'adresse publique : leur seul chemin
+vers S3 passe par cet endpoint (la route du préfixe S3 est plus spécifique que
+la route par défaut vers la NAT Gateway). Même avec `LabRole`, elles ne peuvent
+toucher que les deux buckets du projet et les buckets SSM nécessaires au
+fonctionnement de Session Manager. Vérifié depuis une instance :
+
+| Opération | Résultat |
+|---|---|
+| `ListBucket` sur le bucket du projet | **autorisé** |
+| `PutObject` sur le bucket du projet | **autorisé** |
+| `ListBucket` sur le bucket d'état Terraform | **refusé** par la politique de l'endpoint |
+| Session Manager (`ssm send-command`) | **fonctionnel** |
+
+Portée : S3 uniquement. SSM, CloudWatch et les autres services restent régis
+par `LabRole`. Couvrir ces services demanderait des endpoints d'interface
+(payants), non justifiés dans le cadre de ce projet. L'endpoint de passerelle
+S3 est **gratuit** et économise en plus le trafic S3 qui passait par la NAT.
 
 ### `iam:TagPolicy` et `iam:TagInstanceProfile` refusés
 

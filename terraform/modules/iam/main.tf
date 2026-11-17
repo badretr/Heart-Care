@@ -15,6 +15,23 @@ locals {
   # Les ressources IAM sont donc creees sans tags dans le lab ; sur un compte
   # AWS standard, enable_iam_tags = true applique les tags obligatoires.
   iam_tags = var.enable_iam_tags ? local.common_tags : {}
+
+  # Actions S3 autorisees aux instances. Partagees entre la politique IAM et la
+  # politique de l'endpoint, pour qu'une seule liste fasse foi.
+  app_object_actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+  app_list_actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+
+  # Buckets AWS lus par l'agent SSM. Sans eux, l'endpoint couperait Session
+  # Manager, que le projet utilise pour administrer les instances sans port SSH.
+  ssm_artifact_buckets = [
+    "aws-ssm-${data.aws_region.current.name}",
+    "amazon-ssm-${data.aws_region.current.name}",
+    "amazon-ssm-packages-${data.aws_region.current.name}",
+    "${data.aws_region.current.name}-birdwatcher-prod",
+    "aws-ssm-distributor-file-${data.aws_region.current.name}",
+    "aws-ssm-document-attachments-${data.aws_region.current.name}",
+    "patch-baseline-snapshot-${data.aws_region.current.name}",
+  ]
 }
 
 data "aws_caller_identity" "current" {}
@@ -32,24 +49,17 @@ data "aws_region" "current" {}
 data "aws_iam_policy_document" "app" {
   # Acces aux objets du bucket applicatif
   statement {
-    sid    = "AppBucketObjectAccess"
-    effect = "Allow"
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject",
-    ]
+    sid       = "AppBucketObjectAccess"
+    effect    = "Allow"
+    actions   = local.app_object_actions
     resources = ["${var.app_bucket_arn}/*"]
   }
 
   # Listage limite au bucket applicatif
   statement {
-    sid    = "AppBucketList"
-    effect = "Allow"
-    actions = [
-      "s3:ListBucket",
-      "s3:GetBucketLocation",
-    ]
+    sid       = "AppBucketList"
+    effect    = "Allow"
+    actions   = local.app_list_actions
     resources = [var.app_bucket_arn]
   }
 
@@ -191,4 +201,83 @@ resource "aws_iam_instance_profile" "app" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# ---------------------------------------------------------------------------
+# Moindre privilege applique reellement sur S3, par le reseau
+#
+# AWS Academy Learner Lab refuse les quatre moyens de lier une politique a un
+# role (CreateRole, AttachRolePolicy, PutRolePolicy, PutRolePermissionsBoundary).
+# Les instances portent donc LabRole, dont les permissions sont tres larges, et
+# la politique ci-dessus n'est jamais appliquee.
+#
+# Un endpoint de passerelle S3 porte sa propre politique, evaluee EN PLUS des
+# permissions IAM : une requete doit etre permise par les deux. Les instances
+# n'ont pas d'adresse publique, leur seul chemin vers S3 passe par cet endpoint
+# (la route du prefixe S3 est plus specifique que la route par defaut vers la
+# NAT). Meme avec LabRole, elles ne peuvent donc toucher que les deux buckets du
+# projet, et seulement avec les actions de local.app_*_actions.
+#
+# Portee : S3 uniquement. SSM, CloudWatch et les autres services restent regis
+# par LabRole. Gratuit, et economise en plus le trafic S3 facture par la NAT.
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "s3_endpoint" {
+  statement {
+    sid       = "AppBucketObjectAccess"
+    effect    = "Allow"
+    actions   = local.app_object_actions
+    resources = ["${var.app_bucket_arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+
+  statement {
+    sid       = "AppBucketList"
+    effect    = "Allow"
+    actions   = local.app_list_actions
+    resources = [var.app_bucket_arn]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+
+  statement {
+    sid       = "LogsBucketWrite"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${var.logs_bucket_arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+
+  statement {
+    sid       = "SsmAgentArtifacts"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = [for b in local.ssm_artifact_buckets : "arn:aws:s3:::${b}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  count = var.vpc_id == "" ? 0 : 1
+
+  vpc_id            = var.vpc_id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = var.route_table_ids
+  policy            = data.aws_iam_policy_document.s3_endpoint.json
+
+  tags = merge(
+    local.common_tags,
+    { Name = "${local.name_prefix}-s3-endpoint" }
+  )
 }
