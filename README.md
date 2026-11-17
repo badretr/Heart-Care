@@ -177,15 +177,50 @@ RDS est longue, et le `user_data` installe ensuite l'application.
 > toute ressource `aws_s3_bucket`. Sur un compte AWS standard, retirez ce
 > drapeau — voir [section 9](#9-limites-connues).
 
-### 4.3 Détruire
+### 4.3 Fermer l'environnement
+
+**À faire dès qu'on arrête de travailler.** L'infrastructure coûte environ
+**0,17 $ par heure qu'elle serve ou non**, soit plus de 4 $ par jour : un
+week-end oublié coûte une douzaine de dollars sur un crédit de 50 $.
+
+Le script enchaîne la vérification des identifiants, le plan de destruction,
+la confirmation, puis le contrôle qu'il ne reste rien de facturable :
+
+```bash
+cd terraform
+./scripts/shutdown.sh dev
+```
+
+À la main, si l'on préfère :
 
 ```bash
 cd terraform/environments/dev
+
+# Le mot de passe est requis même pour détruire ; on le relit depuis SSM
+export TF_VAR_db_password=$(aws ssm get-parameter \
+  --name /heartcare/dev/db/password --with-decryption \
+  --query Parameter.Value --output text)
+
+terraform plan -destroy -refresh=false   # lire avant de confirmer
 terraform destroy -refresh=false
 ```
 
-**À faire dès la fin de la démonstration** : l'infrastructure coûte environ
-0,18 $ par heure, qu'elle serve ou non.
+Puis vérifier que les cinq commandes suivantes renvoient une **ligne vide** :
+
+```bash
+aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].InstanceId' --output text
+aws ec2 describe-nat-gateways --filter "Name=state,Values=available" \
+  --query 'NatGateways[].NatGatewayId' --output text
+aws rds describe-db-instances --query 'DBInstances[].DBInstanceIdentifier' --output text
+aws elbv2 describe-load-balancers --query 'LoadBalancers[].LoadBalancerName' --output text
+aws ec2 describe-addresses --query 'Addresses[].PublicIp' --output text
+```
+
+**Ce qui survit volontairement :** le bucket S3 de l'état Terraform avec son
+historique, son bucket de journaux, et la table DynamoDB de verrouillage. Ils
+coûtent quelques centimes par mois et contiennent la mémoire du projet — les
+supprimer obligerait à tout reconstruire.
 
 ---
 
